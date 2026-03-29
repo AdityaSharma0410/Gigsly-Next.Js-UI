@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/lib/contexts/ThemeContext';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Search, Briefcase, MessageSquare, User, LogOut, Menu, X, Bell, Moon, Sun } from 'lucide-react';
+import { Home, Search, Briefcase, MessageSquare, User, LogOut, Menu, X, Bell, Moon, Sun, Shield } from 'lucide-react';
 import { useState } from 'react';
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
@@ -17,10 +17,14 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     { name: 'Home', href: '/', icon: Home },
     { name: 'Browse', href: '/browse', icon: Search },
     { name: 'Find Work', href: '/find-work', icon: Briefcase },
-    ...(isAuthenticated ? [
-      { name: 'Messages', href: '/chat', icon: MessageSquare },
-      { name: 'Dashboard', href: '/dashboard', icon: User },
-    ] : []),
+    ...(isAuthenticated
+      ? [
+          { name: 'Messages', href: '/chat', icon: MessageSquare },
+          user?.role === 'ADMIN'
+            ? { name: 'Admin', href: '/admin', icon: Shield }
+            : { name: 'Dashboard', href: '/dashboard', icon: User },
+        ]
+      : []),
   ];
 
   return (

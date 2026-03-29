@@ -1,20 +1,34 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import Cookies from 'js-cookie';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
+/** Backend for Next.js rewrites (see next.config.ts). Used on the server when no public URL is set. */
+const INTERNAL_API_ORIGIN =
+  process.env.API_PROXY_TARGET?.replace(/\/$/, '') ||
+  process.env.INTERNAL_API_URL?.replace(/\/$/, '') ||
+  'http://localhost:9090';
+
+function resolveBaseURL(): string {
+  const explicit = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (explicit) return explicit.replace(/\/$/, '');
+  if (typeof window !== 'undefined') {
+    // Browser: same-origin `/api/*` → proxied to gateway (avoids CORS when dev runs on :3001, etc.)
+    return '';
+  }
+  return INTERNAL_API_ORIGIN;
+}
 
 // Create axios instance
 const apiClient: AxiosInstance = axios.create({
-  baseURL: API_URL,
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request interceptor - Add auth token
+// Request interceptor — base URL + auth token
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    config.baseURL = resolveBaseURL();
     const token = Cookies.get('auth_token');
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;

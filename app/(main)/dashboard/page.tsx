@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth, useRequireAuth } from '@/hooks/useAuth';
 import { taskApi, proposalApi, categoryApi, type Task, type Proposal, type Category } from '@/lib/api';
 import { formatTaskBudget, categoryNameFromList } from '@/lib/taskDisplay';
@@ -9,6 +10,7 @@ import { Briefcase, FileText, TrendingUp, DollarSign, Loader2, Plus } from 'luci
 
 export default function DashboardPage() {
   useRequireAuth();
+  const router = useRouter();
   const { user } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [proposals, setProposals] = useState<Proposal[]>([]);
@@ -16,15 +18,19 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (user?.role === 'ADMIN') {
+      router.replace('/admin');
+      return;
+    }
     if (user) loadDashboardData();
-  }, [user]);
+  }, [user, router]);
 
   const loadDashboardData = async () => {
     if (!user) return;
     try {
       const cats = await categoryApi.getAll().catch(() => [] as Category[]);
       setCategories(cats);
-      if (user.role === 'CLIENT' || user.role === 'ADMIN') {
+      if (user.role === 'CLIENT') {
         const myTasks = await taskApi.getMine();
         setTasks(myTasks);
       } else if (user.role === 'PROFESSIONAL') {
@@ -38,7 +44,7 @@ export default function DashboardPage() {
     }
   };
 
-  if (loading) {
+  if (loading || user?.role === 'ADMIN') {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-blue-600" />

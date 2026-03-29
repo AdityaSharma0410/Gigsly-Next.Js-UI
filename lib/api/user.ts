@@ -43,6 +43,14 @@ export const userApi = {
     return response.data;
   },
 
+  updateUserStatus: async (
+    userId: number,
+    body: { isVerified: boolean; isActive: boolean }
+  ): Promise<User> => {
+    const response = await apiClient.patch<User>(`/api/users/${userId}/status`, body);
+    return response.data;
+  },
+
   deleteUser: async (userId: number): Promise<void> => {
     await apiClient.delete(`/api/users/${userId}`);
   },

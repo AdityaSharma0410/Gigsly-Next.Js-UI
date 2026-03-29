@@ -8,8 +8,8 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (credentials: LoginRequest) => Promise<void>;
-  register: (data: RegisterRequest) => Promise<void>;
+  login: (credentials: LoginRequest) => Promise<User>;
+  register: (data: RegisterRequest) => Promise<User>;
   logout: () => void;
   updateUser: (userData: User) => void;
 }
@@ -39,25 +39,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (credentials: LoginRequest) => {
-    try {
-      const response = await authApi.login(credentials);
-      Cookies.set('auth_token', response.token, { expires: 7 });
-      Cookies.set('user_data', JSON.stringify(response.user), { expires: 7 });
-      setUser(response.user);
-    } catch (error) {
-      throw error;
-    }
+    const response = await authApi.login(credentials);
+    Cookies.set('auth_token', response.token, { expires: 7 });
+    Cookies.set('user_data', JSON.stringify(response.user), { expires: 7 });
+    setUser(response.user);
+    return response.user;
   };
 
   const register = async (data: RegisterRequest) => {
-    try {
-      const response = await authApi.register(data);
-      Cookies.set('auth_token', response.token, { expires: 7 });
-      Cookies.set('user_data', JSON.stringify(response.user), { expires: 7 });
-      setUser(response.user);
-    } catch (error) {
-      throw error;
-    }
+    const response = await authApi.register(data);
+    Cookies.set('auth_token', response.token, { expires: 7 });
+    Cookies.set('user_data', JSON.stringify(response.user), { expires: 7 });
+    setUser(response.user);
+    return response.user;
   };
 
   const logout = () => {

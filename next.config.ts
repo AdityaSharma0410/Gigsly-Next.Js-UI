@@ -1,7 +1,24 @@
 import type { NextConfig } from "next";
 
+/** Where the Spring Cloud Gateway listens; browser calls use same-origin `/api` via rewrites when NEXT_PUBLIC_API_URL is unset. */
+const apiProxyTarget =
+  (process.env.API_PROXY_TARGET ||
+    process.env.INTERNAL_API_URL ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    "http://localhost:9090"
+  ).replace(/\/$/, "");
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+
+  async rewrites() {
+    return [
+      {
+        source: "/api/:path*",
+        destination: `${apiProxyTarget}/api/:path*`,
+      },
+    ];
+  },
   
   // Image optimization for user avatars and gig images
   images: {

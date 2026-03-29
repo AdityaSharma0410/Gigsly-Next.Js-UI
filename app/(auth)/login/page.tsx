@@ -23,8 +23,8 @@ export default function LoginPage() {
     setError('');
 
     try {
-      await login(credentials);
-      router.push('/dashboard');
+      const user = await login(credentials);
+      router.push(user.role === 'ADMIN' ? '/admin' : '/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Invalid credentials');
     } finally {
