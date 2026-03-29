@@ -1,42 +1,47 @@
 import apiClient from './client';
-import type { ChatThread, Message, SendMessageRequest, PaginatedResponse } from './types';
+import type { ChatThread, Message, SendMessageRequest } from './types';
 
 export const chatApi = {
-  // Get all threads for current user
   getThreads: async (): Promise<ChatThread[]> => {
-    const response = await apiClient.get('/api/chat/threads');
+    const response = await apiClient.get<ChatThread[]>('/api/chat/threads');
     return response.data;
   },
 
-  // Get or create thread with another user
-  getOrCreateThread: async (otherUserId: number): Promise<ChatThread> => {
-    const response = await apiClient.post('/api/chat/threads', { otherUserId });
+  /** Create thread with another user (matches CreateThreadRequest) */
+  createThread: async (otherUserId: number, taskId?: number, initialMessage?: string): Promise<ChatThread> => {
+    const response = await apiClient.post<ChatThread>('/api/chat/threads', {
+      otherUserId,
+      taskId,
+      initialMessage,
+    });
     return response.data;
   },
 
-  // Get messages in a thread (paginated)
-  getMessages: async (threadId: number, params: {
-    page?: number;
-    size?: number;
-  }): Promise<PaginatedResponse<Message>> => {
-    const response = await apiClient.get(`/api/chat/threads/${threadId}/messages`, { params });
+  getOrCreateThread: async (otherUserId: number, taskId?: number): Promise<ChatThread> => {
+    const response = await apiClient.post<ChatThread>(
+      '/api/chat/threads/get-or-create',
+      {},
+      { params: { otherUserId, taskId } }
+    );
     return response.data;
   },
 
-  // Send message
+  getMessages: async (threadId: number): Promise<Message[]> => {
+    const response = await apiClient.get<Message[]>(`/api/chat/threads/${threadId}/messages`);
+    return response.data;
+  },
+
   sendMessage: async (data: SendMessageRequest): Promise<Message> => {
-    const response = await apiClient.post('/api/chat/messages', data);
+    const response = await apiClient.post<Message>('/api/chat/messages', data);
     return response.data;
   },
 
-  // Mark messages as read
-  markAsRead: async (messageIds: number[]): Promise<void> => {
-    await apiClient.post('/api/chat/messages/read', { messageIds });
+  markThreadRead: async (threadId: number): Promise<void> => {
+    await apiClient.post('/api/chat/messages/mark-read', { threadId });
   },
 
-  // Get unread count
   getUnreadCount: async (): Promise<number> => {
-    const response = await apiClient.get('/api/chat/unread/count');
+    const response = await apiClient.get<number>('/api/chat/unread-count');
     return response.data;
   },
 };

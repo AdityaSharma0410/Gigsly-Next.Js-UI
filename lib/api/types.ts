@@ -5,6 +5,16 @@ export interface ApiResponse<T> {
   success?: boolean;
 }
 
+/** Spring Data Page JSON shape */
+export interface SpringPage<T> {
+  content: T[];
+  number: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  last: boolean;
+}
+
 export interface PaginatedResponse<T> {
   content: T[];
   page: number;
@@ -30,7 +40,8 @@ export interface User {
   bio?: string;
   role: 'CLIENT' | 'PROFESSIONAL' | 'ADMIN';
   primaryCategory?: string;
-  skills?: string[];
+  /** Comma-separated from API */
+  skills?: string;
   hourlyRate?: number;
   location?: string;
   isVerified: boolean;
@@ -48,53 +59,62 @@ export interface UserStats {
   averageResponseTime: number;
 }
 
-// Task/Gig types
+// Task/Gig types (aligned with task-service TaskResponseDTO)
 export interface Task {
   id: number;
   title: string;
   description: string;
-  category: string;
-  budget: number;
-  budgetType: 'FIXED' | 'HOURLY';
-  status: 'OPEN' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
-  priority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
-  deadline?: string;
+  categoryId: number;
   clientId: number;
+  budgetMin?: number;
+  budgetMax?: number;
+  status: 'OPEN' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'CLOSED';
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  deadline?: string;
+  requiredSkills?: string;
+  location?: string;
+  isRemote?: boolean;
+  estimatedDuration?: string;
   assignedProfessionalId?: number;
-  tags?: string[];
-  attachments?: string[];
   createdAt: string;
-  updatedAt: string;
 }
 
 export interface CreateTaskRequest {
   title: string;
   description: string;
-  category: string;
-  budget: number;
-  budgetType: 'FIXED' | 'HOURLY';
-  priority?: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+  categoryId: number;
+  budgetMin?: number;
+  budgetMax?: number;
   deadline?: string;
-  tags?: string[];
+  requiredSkills?: string;
+  location?: string;
+  isRemote?: boolean;
+  estimatedDuration?: string;
+  assignedProfessionalId?: number;
 }
 
-// Proposal types
+// Proposal types (aligned with proposal-service)
 export interface Proposal {
   id: number;
   taskId: number;
+  taskTitle?: string;
   professionalId: number;
-  coverLetter: string;
-  proposedAmount: number;
-  estimatedDuration: number;
+  professionalName?: string;
+  message: string;
+  proposedAmount?: number;
+  estimatedDuration?: string;
   status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
   createdAt: string;
+  updatedAt?: string;
+  acceptedAt?: string;
+  rejectedAt?: string;
 }
 
 export interface CreateProposalRequest {
   taskId: number;
-  coverLetter: string;
-  proposedAmount: number;
-  estimatedDuration: number;
+  message: string;
+  proposedAmount?: number;
+  estimatedDuration?: string;
 }
 
 // Review types
@@ -102,9 +122,11 @@ export interface Review {
   id: number;
   taskId: number;
   reviewerId: number;
+  reviewerName?: string;
   revieweeId: number;
+  revieweeName?: string;
   rating: number;
-  comment: string;
+  comment?: string;
   createdAt: string;
 }
 
@@ -118,34 +140,43 @@ export interface CreateReviewRequest {
   taskId: number;
   revieweeId: number;
   rating: number;
-  comment: string;
+  comment?: string;
 }
 
-// Chat types
+// Chat types (aligned with chat-service DTOs)
 export interface ChatThread {
   id: number;
   user1Id: number;
   user2Id: number;
+  otherUserId?: number;
+  taskId?: number;
   lastMessage?: string;
+  lastMessageText?: string;
   lastMessageTime?: string;
-  unreadCountUser1: number;
-  unreadCountUser2: number;
-  createdAt: string;
+  lastMessageSenderId?: number;
+  unreadCount?: number;
+  unreadCountUser1?: number;
+  unreadCountUser2?: number;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Message {
   id: number;
   threadId: number;
   senderId: number;
-  receiverId: number;
   content: string;
-  messageType: 'TEXT' | 'IMAGE' | 'FILE';
-  isRead: boolean;
-  sentAt: string;
+  messageType: string;
+  isRead?: boolean;
+  readAt?: string;
+  createdAt?: string;
+  sentAt?: string;
+  isOwn?: boolean;
 }
 
 export interface SendMessageRequest {
-  receiverId: number;
+  threadId: number;
   content: string;
   messageType?: 'TEXT' | 'IMAGE' | 'FILE';
 }
@@ -174,4 +205,13 @@ export interface RegisterRequest {
 export interface AuthResponse {
   token: string;
   user: User;
+}
+
+export interface ProfessionalProfileRequest {
+  primaryCategory?: string;
+  skills?: string;
+  hourlyRate?: number;
+  location?: string;
+  bio?: string;
+  profilePictureUrl?: string;
 }

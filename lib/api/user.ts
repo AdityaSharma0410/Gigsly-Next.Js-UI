@@ -1,41 +1,45 @@
 import apiClient from './client';
-import type { User, UserStats, AuthResponse, LoginRequest, RegisterRequest } from './types';
+import type { User, UserStats, AuthResponse, LoginRequest, RegisterRequest, ProfessionalProfileRequest } from './types';
 
 export const authApi = {
   login: async (credentials: LoginRequest): Promise<AuthResponse> => {
-    const response = await apiClient.post('/api/users/login', credentials);
+    const response = await apiClient.post<AuthResponse>('/api/users/login', credentials);
     return response.data;
   },
 
   register: async (data: RegisterRequest): Promise<AuthResponse> => {
-    const response = await apiClient.post('/api/users/register', data);
+    const response = await apiClient.post<AuthResponse>('/api/users/register', data);
     return response.data;
   },
 
   logout: async (): Promise<void> => {
-    // Backend doesn't have logout endpoint, just clear cookies
     return Promise.resolve();
   },
 };
 
 export const userApi = {
-  getProfile: async (userId: number): Promise<User> => {
-    const response = await apiClient.get(`/api/users/${userId}`);
+  getMe: async (): Promise<User> => {
+    const response = await apiClient.get<User>('/api/users/me');
     return response.data;
   },
 
-  updateProfile: async (userId: number, data: Partial<User>): Promise<User> => {
-    const response = await apiClient.put(`/api/users/${userId}`, data);
+  getProfile: async (userId: number): Promise<User> => {
+    const response = await apiClient.get<User>(`/api/users/${userId}`);
+    return response.data;
+  },
+
+  updateProfessionalProfile: async (data: ProfessionalProfileRequest): Promise<User> => {
+    const response = await apiClient.put<User>('/api/users/me/profile', data);
     return response.data;
   },
 
   getUserStats: async (userId: number): Promise<UserStats> => {
-    const response = await apiClient.get(`/api/users/${userId}/stats`);
+    const response = await apiClient.get<UserStats>(`/api/users/${userId}/stats`);
     return response.data;
   },
 
   getAllUsers: async (): Promise<User[]> => {
-    const response = await apiClient.get('/api/users');
+    const response = await apiClient.get<User[]>('/api/users');
     return response.data;
   },
 

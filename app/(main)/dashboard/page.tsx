@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth, useRequireAuth } from '@/hooks/useAuth';
-import { taskApi, proposalApi, type Task, type Proposal } from '@/lib/api';
+import { taskApi, proposalApi, categoryApi, type Task, type Proposal, type Category } from '@/lib/api';
+import { formatTaskBudget, categoryNameFromList } from '@/lib/taskDisplay';
 import Link from 'next/link';
 import { Briefcase, FileText, TrendingUp, DollarSign, Loader2, Plus } from 'lucide-react';
 
@@ -11,6 +12,7 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -20,11 +22,13 @@ export default function DashboardPage() {
   const loadDashboardData = async () => {
     if (!user) return;
     try {
-      if (user.role === 'CLIENT') {
-        const myTasks = await taskApi.getClientTasks(user.id);
+      const cats = await categoryApi.getAll().catch(() => [] as Category[]);
+      setCategories(cats);
+      if (user.role === 'CLIENT' || user.role === 'ADMIN') {
+        const myTasks = await taskApi.getMine();
         setTasks(myTasks);
       } else if (user.role === 'PROFESSIONAL') {
-        const myProposals = await proposalApi.getByProfessional(user.id);
+        const myProposals = await proposalApi.getMine();
         setProposals(myProposals);
       }
     } catch (error) {
@@ -48,7 +52,7 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-4xl font-bold mb-2">Dashboard</h1>
-            <p className="text-muted-foreground">Welcome back, {user?.name}!</p>
+            <p className="text-muted-foreground">Welcome back, {user?.fullName}!</p>
           </div>
           {user?.role === 'CLIENT' && (
             <Link
@@ -135,8 +139,10 @@ export default function DashboardPage() {
                       {task.description}
                     </p>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">{task.category}</span>
-                      <span className="text-lg font-bold text-blue-600">₹{task.budget}</span>
+                      <span className="text-sm text-muted-foreground">
+                        {categoryNameFromList(task.categoryId, categories)}
+                      </span>
+                      <span className="text-lg font-bold text-blue-600">{formatTaskBudget(task)}</span>
                     </div>
                   </Link>
                 ))}
@@ -174,9 +180,9 @@ export default function DashboardPage() {
                       </span>
                       <span className="text-lg font-bold text-blue-600">₹{proposal.proposedAmount}</span>
                     </div>
-                    <p className="text-sm mb-2 line-clamp-2">{proposal.coverLetter}</p>
+                    <p className="text-sm mb-2 line-clamp-2">{proposal.message}</p>
                     <p className="text-xs text-muted-foreground">
-                      Estimated: {proposal.estimatedDuration} days • 
+                      Estimated: {proposal.estimatedDuration ?? '—'} •{' '}
                       Submitted {new Date(proposal.createdAt).toLocaleDateString()}
                     </p>
                   </div>

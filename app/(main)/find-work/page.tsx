@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { taskApi, type Task } from '@/lib/api';
+import { formatTaskBudget } from '@/lib/taskDisplay';
 import Link from 'next/link';
 import { Search, Briefcase, Loader2, Filter } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -89,8 +90,10 @@ export default function FindWorkPage() {
                         {task.description}
                       </p>
                       <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">{task.budgetType}</span>
-                        <span className="text-lg font-bold text-blue-600">₹{task.budget}</span>
+                        <span className="text-sm text-muted-foreground">
+                          {task.isRemote ? 'Remote' : 'On-site'}
+                        </span>
+                        <span className="text-lg font-bold text-blue-600">{formatTaskBudget(task)}</span>
                       </div>
                     </div>
                   </Link>

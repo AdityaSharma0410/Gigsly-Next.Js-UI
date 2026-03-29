@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRequireRole } from '@/hooks/useAuth';
 import { taskApi, userApi, type Task, type User } from '@/lib/api';
+import { formatTaskBudget } from '@/lib/taskDisplay';
 import Link from 'next/link';
 import { 
   Users, Briefcase, FileText, Star, TrendingUp, 
@@ -183,7 +184,7 @@ export default function AdminDashboard() {
                   {users
                     .filter(u => 
                       !searchTerm || 
-                      u.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                      u.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                       u.email.toLowerCase().includes(searchTerm.toLowerCase())
                     )
                     .map((user) => (
@@ -191,9 +192,9 @@ export default function AdminDashboard() {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm">
-                              {user.name?.[0]?.toUpperCase() || 'U'}
+                              {user.fullName?.[0]?.toUpperCase() || 'U'}
                             </div>
-                            <span className="font-medium">{user.name || 'No name'}</span>
+                            <span className="font-medium">{user.fullName || 'No name'}</span>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
@@ -243,7 +244,7 @@ export default function AdminDashboard() {
                         {task.description}
                       </p>
                       <div className="flex items-center gap-4 text-sm">
-                        <span className="text-muted-foreground">₹{task.budget}</span>
+                        <span className="text-muted-foreground">{formatTaskBudget(task)}</span>
                         <span className={`px-2 py-1 rounded-full text-xs ${
                           task.status === 'OPEN'
                             ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300'

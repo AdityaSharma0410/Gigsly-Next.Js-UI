@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth, useRequireAuth } from '@/hooks/useAuth';
 import { chatApi, userApi, type ChatThread, type Message, type User } from '@/lib/api';
+import type { AxiosError } from 'axios';
 import { Send, Loader2, MessageSquare } from 'lucide-react';
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
@@ -44,8 +45,10 @@ export default function ChatPage() {
   }, [messages]);
 
   const connectWebSocket = () => {
-    const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:9090';
-    const socket = new SockJS(`${WS_URL.replace('ws://', 'http://')}/ws`);
+    // WebSocket is served by chat-service (not the API gateway)
+    const base = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:8088';
+    const httpUrl = base.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://');
+    const socket = new SockJS(`${httpUrl.replace(/\/$/, '')}/ws`);
     
     const stompClient = new Client({
       webSocketFactory: () => socket as any,
@@ -75,7 +78,8 @@ export default function ChatPage() {
         setSelectedThread(data[0]);
       }
     } catch (error) {
-      console.error('Failed to load threads', error);
+      const ax = error as AxiosError;
+      console.error('Failed to load threads', ax.response?.status, ax.response?.data ?? ax.message);
     } finally {
       setLoading(false);
     }
@@ -83,8 +87,8 @@ export default function ChatPage() {
 
   const loadMessages = async (threadId: number) => {
     try {
-      const response = await chatApi.getMessages(threadId, { page: 0, size: 50 });
-      setMessages(response.content.reverse());
+      const list = await chatApi.getMessages(threadId);
+      setMessages([...list].reverse());
     } catch (error) {
       console.error('Failed to load messages', error);
     }
@@ -108,16 +112,13 @@ export default function ChatPage() {
     if (!messageText.trim() || !selectedThread || !user) return;
 
     setSending(true);
-    const otherUserId = selectedThread.user1Id === user.id 
-      ? selectedThread.user2Id 
-      : selectedThread.user1Id;
-
     try {
       await chatApi.sendMessage({
-        receiverId: otherUserId,
+        threadId: selectedThread.id,
         content: messageText,
         messageType: 'TEXT',
       });
+      await loadMessages(selectedThread.id);
       setMessageText('');
     } catch (error) {
       console.error('Failed to send message', error);
@@ -166,14 +167,15 @@ export default function ChatPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-medium truncate">User {thread.user1Id === user?.id ? thread.user2Id : thread.user1Id}</p>
-                        {thread.lastMessage && (
-                          <p className="text-sm text-muted-foreground truncate">{thread.lastMessage}</p>
+                        {(thread.lastMessageText || thread.lastMessage) && (
+                          <p className="text-sm text-muted-foreground truncate">
+                            {thread.lastMessageText || thread.lastMessage}
+                          </p>
                         )}
                       </div>
-                      {((thread.user1Id === user?.id && thread.unreadCountUser1 > 0) ||
-                        (thread.user2Id === user?.id && thread.unreadCountUser2 > 0)) && (
+                      {(thread.unreadCount ?? 0) > 0 && (
                         <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full">
-                          {thread.user1Id === user?.id ? thread.unreadCountUser1 : thread.unreadCountUser2}
+                          {thread.unreadCount}
                         </span>
                       )}
                     </div>
@@ -191,10 +193,10 @@ export default function ChatPage() {
                 <div className="p-4 border-b border-border">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold">
-                      {otherUser?.name?.[0]?.toUpperCase() || 'U'}
+                      {otherUser?.fullName?.[0]?.toUpperCase() || 'U'}
                     </div>
                     <div>
-                      <p className="font-semibold">{otherUser?.name || 'User'}</p>
+                      <p className="font-semibold">{otherUser?.fullName || 'User'}</p>
                       <p className="text-sm text-muted-foreground">{otherUser?.role || ''}</p>
                     </div>
                   </div>
@@ -218,7 +220,7 @@ export default function ChatPage() {
                         >
                           <p className="text-sm">{message.content}</p>
                           <p className={`text-xs mt-1 ${isOwnMessage ? 'text-blue-100' : 'text-muted-foreground'}`}>
-                            {new Date(message.sentAt).toLocaleTimeString()}
+                            {new Date(message.createdAt || message.sentAt || '').toLocaleTimeString()}
                           </p>
                         </div>
                       </div>

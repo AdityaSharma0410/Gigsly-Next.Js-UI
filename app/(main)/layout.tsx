@@ -77,7 +77,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                   </button>
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm">
-                      {user?.name?.[0]?.toUpperCase()}
+                      {user?.fullName?.[0]?.toUpperCase()}
                     </div>
                     <button
                       onClick={logout}

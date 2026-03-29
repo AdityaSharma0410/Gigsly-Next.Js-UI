@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { taskApi, categoryApi, type Task, type Category } from '@/lib/api';
+import { formatTaskBudget, categoryNameFromList } from '@/lib/taskDisplay';
 import Link from 'next/link';
 import { Search, Filter, Briefcase, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -17,7 +18,7 @@ function BrowseContent() {
 
   const [filters, setFilters] = useState({
     keyword: searchParams.get('keyword') || '',
-    category: searchParams.get('category') || '',
+    categoryId: '',
     minBudget: '',
     maxBudget: '',
     sortBy: 'createdAt',
@@ -45,22 +46,22 @@ function BrowseContent() {
   const loadTasks = async () => {
     setLoading(true);
     try {
+      const sortBy =
+        filters.sortBy === 'budget' ? 'budgetMax' : filters.sortBy;
       const response = filters.keyword
         ? await taskApi.search({
             keyword: filters.keyword,
             page: currentPage,
             size: 12,
-            sortBy: filters.sortBy,
-            sortDirection: filters.sortDirection,
           })
         : await taskApi.browse({
-            category: filters.category || undefined,
+            categoryId: filters.categoryId ? Number(filters.categoryId) : undefined,
             minBudget: filters.minBudget ? Number(filters.minBudget) : undefined,
             maxBudget: filters.maxBudget ? Number(filters.maxBudget) : undefined,
             status: 'OPEN',
             page: currentPage,
             size: 12,
-            sortBy: filters.sortBy,
+            sortBy,
             sortDirection: filters.sortDirection,
           });
       setTasks(response.content);
@@ -110,13 +111,13 @@ function BrowseContent() {
                 <div className="mb-4">
                   <label className="text-sm font-medium mb-2 block">Category</label>
                   <select
-                    value={filters.category}
-                    onChange={(e) => setFilters({ ...filters, category: e.target.value })}
+                    value={filters.categoryId}
+                    onChange={(e) => setFilters({ ...filters, categoryId: e.target.value })}
                     className="w-full p-2 rounded-lg border border-border bg-card"
                   >
                     <option value="">All Categories</option>
                     {categories.map((cat) => (
-                      <option key={cat.id} value={cat.name}>
+                      <option key={cat.id} value={String(cat.id)}>
                         {cat.name}
                       </option>
                     ))}
@@ -160,7 +161,7 @@ function BrowseContent() {
                   onClick={() => {
                     setFilters({
                       keyword: '',
-                      category: '',
+                      categoryId: '',
                       minBudget: '',
                       maxBudget: '',
                       sortBy: 'createdAt',
@@ -207,7 +208,7 @@ function BrowseContent() {
                         <div className="p-4">
                           <div className="flex items-center gap-2 mb-2">
                             <span className="text-xs px-2 py-1 rounded-full bg-blue-600/10 text-blue-600">
-                              {task.category}
+                              {categoryNameFromList(task.categoryId, categories)}
                             </span>
                             {task.priority === 'URGENT' && (
                               <span className="text-xs px-2 py-1 rounded-full bg-red-600/10 text-red-600">
@@ -221,9 +222,9 @@ function BrowseContent() {
                           </p>
                           <div className="flex items-center justify-between">
                             <span className="text-sm text-muted-foreground">
-                              {task.budgetType === 'FIXED' ? 'Fixed Price' : 'Hourly'}
+                              {task.isRemote ? 'Remote' : 'On-site'}
                             </span>
-                            <span className="text-lg font-bold text-blue-600">₹{task.budget}</span>
+                            <span className="text-lg font-bold text-blue-600">{formatTaskBudget(task)}</span>
                           </div>
                         </div>
                       </Link>

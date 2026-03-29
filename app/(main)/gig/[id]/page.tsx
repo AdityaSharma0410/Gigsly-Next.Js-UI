@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { taskApi, userApi, reviewApi, proposalApi, type Task, type User, type Review } from '@/lib/api';
+import { taskApi, userApi, reviewApi, proposalApi, categoryApi, type Task, type User, type Review, type Category } from '@/lib/api';
+import { formatTaskBudget } from '@/lib/taskDisplay';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { Briefcase, User as UserIcon, Star, Calendar, DollarSign, Clock, Send, Loader2, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -13,6 +14,7 @@ export default function GigDetailPage() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuth();
   const [task, setTask] = useState<Task | null>(null);
+  const [category, setCategory] = useState<Category | null>(null);
   const [seller, setSeller] = useState<User | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,8 +34,12 @@ export default function GigDetailPage() {
       const gigData = await taskApi.getTask(Number(params.id));
       setTask(gigData);
 
-      const sellerData = await userApi.getProfile(gigData.clientId);
+      const [sellerData, catData] = await Promise.all([
+        userApi.getProfile(gigData.clientId),
+        categoryApi.getById(gigData.categoryId).catch(() => null),
+      ]);
       setSeller(sellerData);
+      setCategory(catData);
 
       const reviewsData = await reviewApi.getByTask(gigData.id);
       setReviews(reviewsData);
@@ -62,9 +68,9 @@ export default function GigDetailPage() {
     try {
       await proposalApi.create({
         taskId: Number(params.id),
-        coverLetter: proposalText,
+        message: proposalText,
         proposedAmount: Number(proposalAmount),
-        estimatedDuration: Number(proposalDuration),
+        estimatedDuration: String(proposalDuration),
       });
       alert('Proposal submitted successfully!');
       setProposalText('');
@@ -108,7 +114,7 @@ export default function GigDetailPage() {
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-xs px-2 py-1 rounded-full bg-blue-600/10 text-blue-600">
-                    {task.category}
+                    {category?.name ?? `Category #${task.categoryId}`}
                   </span>
                   <span className={`text-xs px-2 py-1 rounded-full ${
                     task.status === 'OPEN' ? 'bg-green-600/10 text-green-600' :
@@ -142,7 +148,7 @@ export default function GigDetailPage() {
                     <DollarSign className="w-5 h-5 text-blue-600" />
                     <div>
                       <p className="text-sm text-muted-foreground">Budget</p>
-                      <p className="font-semibold">₹{task.budget} ({task.budgetType})</p>
+                      <p className="font-semibold">{formatTaskBudget(task)}</p>
                     </div>
                   </div>
                   {task.deadline && (
@@ -162,11 +168,11 @@ export default function GigDetailPage() {
                     </div>
                   </div>
                 </div>
-                {task.tags && task.tags.length > 0 && (
+                {task.requiredSkills && (
                   <div className="mt-4">
                     <p className="text-sm text-muted-foreground mb-2">Skills Required</p>
                     <div className="flex flex-wrap gap-2">
-                      {task.tags.map((tag, i) => (
+                      {task.requiredSkills.split(',').map((s) => s.trim()).filter(Boolean).map((tag, i) => (
                         <span key={i} className="text-xs px-3 py-1 rounded-full border border-border">
                           {tag}
                         </span>
@@ -189,6 +195,7 @@ export default function GigDetailPage() {
                         </div>
                         <p className="text-sm mb-2">{review.comment}</p>
                         <p className="text-xs text-muted-foreground">
+                          {review.reviewerName ? `${review.reviewerName} · ` : ''}
                           {new Date(review.createdAt).toLocaleDateString()}
                         </p>
                       </div>
@@ -210,10 +217,10 @@ export default function GigDetailPage() {
                   <h3 className="font-bold mb-4">About the Client</h3>
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold">
-                      {seller.name[0].toUpperCase()}
+                      {seller.fullName[0].toUpperCase()}
                     </div>
                     <div>
-                      <p className="font-semibold">{seller.name}</p>
+                      <p className="font-semibold">{seller.fullName}</p>
                       <p className="text-sm text-muted-foreground">{seller.role}</p>
                     </div>
                   </div>

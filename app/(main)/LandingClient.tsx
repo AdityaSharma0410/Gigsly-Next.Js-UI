@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { Search, ArrowRight, Star, Users, Briefcase, Shield } from 'lucide-react';
 import type { Category, Task } from '@/lib/api/types';
+import { formatTaskBudget } from '@/lib/taskDisplay';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -213,7 +214,7 @@ export default function LandingClient({ categories, featuredGigs }: LandingClien
                     <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{gig.description}</p>
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium">Starting at</span>
-                      <span className="text-lg font-bold text-blue-600">₹{gig.budget}</span>
+                      <span className="text-lg font-bold text-blue-600">{formatTaskBudget(gig)}</span>
                     </div>
                   </div>
                 </Link>

@@ -1,58 +1,80 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/contexts/AuthContext';
-import { taskApi } from '@/lib/api';
+import { taskApi, categoryApi, type Category } from '@/lib/api';
 import { Loader2, Plus, Minus } from 'lucide-react';
-import { useRequireAuth } from '@/hooks/useAuth';
+import { useRequireRole } from '@/hooks/useAuth';
 
 export default function CreateGigPage() {
-  useRequireAuth();
+  useRequireRole(['CLIENT', 'ADMIN']);
   const router = useRouter();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
+  const [categories, setCategories] = useState<Category[]>([]);
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    category: '',
+    categoryId: '',
     budget: '',
-    budgetType: 'FIXED' as 'FIXED' | 'HOURLY',
-    priority: 'NORMAL' as 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT',
     deadline: '',
+    remote: false,
+    location: '',
     tags: [''],
   });
+
+  useEffect(() => {
+    categoryApi.getAll().then(setCategories).catch(() => setCategories([]));
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    if (!formData.categoryId) {
+      setError('Please select a category');
+      return;
+    }
 
     setLoading(true);
     setError('');
+
+    const budgetNum = Number(formData.budget);
+    if (Number.isNaN(budgetNum) || budgetNum <= 0) {
+      setError('Enter a valid budget');
+      setLoading(false);
+      return;
+    }
+
+    const tags = formData.tags.map((t) => t.trim()).filter(Boolean);
+    const deadlineLocal = formData.deadline ? `${formData.deadline}T12:00:00` : undefined;
 
     try {
       await taskApi.createTask({
         title: formData.title,
         description: formData.description,
-        category: formData.category,
-        budget: Number(formData.budget),
-        budgetType: formData.budgetType,
-        priority: formData.priority,
-        deadline: formData.deadline || undefined,
-        tags: formData.tags.filter(t => t.trim()),
+        categoryId: Number(formData.categoryId),
+        budgetMin: budgetNum,
+        budgetMax: budgetNum,
+        deadline: deadlineLocal,
+        requiredSkills: tags.length ? tags.join(', ') : undefined,
+        location: formData.location || undefined,
+        isRemote: formData.remote,
       });
       router.push('/dashboard');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to create gig');
+    } catch (err: unknown) {
+      const ax = err as { response?: { data?: { message?: string } } };
+      setError(ax.response?.data?.message || 'Failed to create gig');
     } finally {
       setLoading(false);
     }
   };
 
   const addTag = () => setFormData({ ...formData, tags: [...formData.tags, ''] });
-  const removeTag = (index: number) => setFormData({ ...formData, tags: formData.tags.filter((_, i) => i !== index) });
+  const removeTag = (index: number) =>
+    setFormData({ ...formData, tags: formData.tags.filter((_, i) => i !== index) });
   const updateTag = (index: number, value: string) => {
     const newTags = [...formData.tags];
     newTags[index] = value;
@@ -79,6 +101,7 @@ export default function CreateGigPage() {
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
               placeholder="e.g., Build a responsive website"
               required
+              minLength={5}
               className="w-full p-3 rounded-lg border border-border bg-card"
             />
           </div>
@@ -98,36 +121,27 @@ export default function CreateGigPage() {
           <div className="grid md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium mb-2">Category *</label>
-              <input
-                type="text"
-                value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                placeholder="e.g., Web Development"
+              <select
+                value={formData.categoryId}
+                onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
                 required
                 className="w-full p-3 rounded-lg border border-border bg-card"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Priority</label>
-              <select
-                value={formData.priority}
-                onChange={(e) => setFormData({ ...formData, priority: e.target.value as any })}
-                className="w-full p-3 rounded-lg border border-border bg-card"
               >
-                <option value="LOW">Low</option>
-                <option value="NORMAL">Normal</option>
-                <option value="HIGH">High</option>
-                <option value="URGENT">Urgent</option>
+                <option value="">Select a category</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={String(c.id)}>
+                    {c.name}
+                  </option>
+                ))}
               </select>
             </div>
-          </div>
 
-          <div className="grid md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium mb-2">Budget (₹) *</label>
               <input
                 type="number"
+                min={1}
+                step={1}
                 value={formData.budget}
                 onChange={(e) => setFormData({ ...formData, budget: e.target.value })}
                 placeholder="Enter amount"
@@ -135,32 +149,45 @@ export default function CreateGigPage() {
                 className="w-full p-3 rounded-lg border border-border bg-card"
               />
             </div>
+          </div>
 
+          <div className="grid md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium mb-2">Budget Type</label>
-              <select
-                value={formData.budgetType}
-                onChange={(e) => setFormData({ ...formData, budgetType: e.target.value as any })}
+              <label className="block text-sm font-medium mb-2">Deadline (optional)</label>
+              <input
+                type="date"
+                value={formData.deadline}
+                onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
                 className="w-full p-3 rounded-lg border border-border bg-card"
-              >
-                <option value="FIXED">Fixed Price</option>
-                <option value="HOURLY">Hourly Rate</option>
-              </select>
+              />
+            </div>
+            <div className="flex items-center gap-2 pt-8">
+              <input
+                id="remote"
+                type="checkbox"
+                checked={formData.remote}
+                onChange={(e) => setFormData({ ...formData, remote: e.target.checked })}
+                className="rounded border-border"
+              />
+              <label htmlFor="remote" className="text-sm font-medium">
+                Remote work
+              </label>
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Deadline (Optional)</label>
+            <label className="block text-sm font-medium mb-2">Location (optional)</label>
             <input
-              type="date"
-              value={formData.deadline}
-              onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
+              type="text"
+              value={formData.location}
+              onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+              placeholder="City or region"
               className="w-full p-3 rounded-lg border border-border bg-card"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Skills/Tags</label>
+            <label className="block text-sm font-medium mb-2">Skills / tags</label>
             {formData.tags.map((tag, index) => (
               <div key={index} className="flex gap-2 mb-2">
                 <input
@@ -187,7 +214,7 @@ export default function CreateGigPage() {
               className="flex items-center gap-2 text-sm text-blue-600 hover:underline"
             >
               <Plus className="w-4 h-4" />
-              Add Tag
+              Add tag
             </button>
           </div>
 
