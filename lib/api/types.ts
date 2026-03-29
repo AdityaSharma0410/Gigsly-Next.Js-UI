@@ -38,6 +38,9 @@ export interface User {
   mobile?: string;
   profilePictureUrl?: string;
   bio?: string;
+  headline?: string;
+  websiteUrl?: string;
+  linkedinUrl?: string;
   role: 'CLIENT' | 'PROFESSIONAL' | 'ADMIN';
   primaryCategory?: string;
   /** Comma-separated from API */

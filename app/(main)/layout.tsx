@@ -2,24 +2,59 @@
 
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/lib/contexts/ThemeContext';
+import { useNotification } from '@/lib/contexts/NotificationContext';
+import { chatApi } from '@/lib/api';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Search, Briefcase, MessageSquare, User, LogOut, Menu, X, Bell, Moon, Sun, Shield } from 'lucide-react';
-import { useState } from 'react';
+import { Home, Search, Briefcase, MessageSquare, User, LogOut, Menu, X, Bell, Moon, Sun, Shield, UsersRound } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { notifications } = useNotification();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState<number>(0);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setUnreadMessages(0);
+      return;
+    }
+
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const count = await chatApi.getUnreadCount();
+        if (!cancelled) setUnreadMessages(Number.isFinite(count) ? count : 0);
+      } catch {
+        if (!cancelled) setUnreadMessages(0);
+      }
+    };
+
+    load();
+    const t = window.setInterval(load, 20000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(t);
+    };
+  }, [isAuthenticated]);
 
   const navigation = [
     { name: 'Home', href: '/', icon: Home },
     { name: 'Browse', href: '/browse', icon: Search },
-    { name: 'Find Work', href: '/find-work', icon: Briefcase },
+    // Keep discovery links visible (especially on auth/admin flows).
+    ...(user?.role === 'PROFESSIONAL'
+      ? [{ name: 'Find Work', href: '/find-work', icon: Briefcase }]
+      : []),
+    { name: 'Browse Professionals', href: '/professionals', icon: UsersRound },
+    { name: 'Browse Clients', href: '/clients', icon: UsersRound },
     ...(isAuthenticated
       ? [
           { name: 'Messages', href: '/chat', icon: MessageSquare },
+          { name: 'Profile', href: '/profile/me', icon: User },
           user?.role === 'ADMIN'
             ? { name: 'Admin', href: '/admin', icon: Shield }
             : { name: 'Dashboard', href: '/dashboard', icon: User },
@@ -43,6 +78,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
               {navigation.map((item) => {
                 const Icon = item.icon;
                 const isActive = pathname === item.href;
+                const showUnread = item.href === '/chat' && unreadMessages > 0;
                 return (
                   <Link
                     key={item.name}
@@ -53,7 +89,17 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                         : 'hover:bg-muted'
                     }`}
                   >
-                    <Icon className="w-4 h-4" />
+                    <span className="relative inline-flex">
+                      <Icon className="w-4 h-4" />
+                      {showUnread && (
+                        <span
+                          className="absolute -top-1 -right-1 min-w-4 h-4 px-1 text-[10px] leading-4 text-white bg-red-600 rounded-full text-center"
+                          aria-label={`${unreadMessages} unread messages`}
+                        >
+                          {unreadMessages > 99 ? '99+' : unreadMessages}
+                        </span>
+                      )}
+                    </span>
                     <span className="text-sm font-medium">{item.name}</span>
                   </Link>
                 );
@@ -75,10 +121,21 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
               </button>
               {isAuthenticated ? (
                 <>
-                  <button className="p-2 hover:bg-muted rounded-lg relative">
+                  <Link
+                    href="/notifications"
+                    aria-label="Notifications"
+                    className={`p-2 hover:bg-muted rounded-lg transition-colors relative ${
+                      pathname === '/notifications' ? 'bg-muted' : ''
+                    }`}
+                  >
                     <Bell className="w-5 h-5" />
-                    <span className="absolute top-1 right-1 w-2 h-2 bg-red-600 rounded-full" />
-                  </button>
+                    {(notifications.length > 0 || unreadMessages > 0) && (
+                      <span
+                        className="absolute top-1 right-1 w-2 h-2 bg-red-600 rounded-full"
+                        aria-hidden="true"
+                      />
+                    )}
+                  </Link>
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm">
                       {user?.fullName?.[0]?.toUpperCase()}
@@ -144,16 +201,28 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             </nav>
             <div className="mt-4 pt-4 border-t border-border">
               {isAuthenticated ? (
-                <button
-                  onClick={() => {
-                    logout();
-                    setMobileMenuOpen(false);
-                  }}
-                  className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-muted w-full"
-                >
-                  <LogOut className="w-5 h-5" />
-                  <span className="font-medium">Logout</span>
-                </button>
+                <div className="flex flex-col gap-2">
+                  <Link
+                    href="/notifications"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-lg ${
+                      pathname === '/notifications' ? 'bg-blue-600 text-white' : 'hover:bg-muted'
+                    }`}
+                  >
+                    <Bell className="w-5 h-5" />
+                    <span className="font-medium">Notifications</span>
+                  </Link>
+                  <button
+                    onClick={() => {
+                      logout();
+                      setMobileMenuOpen(false);
+                    }}
+                    className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-muted w-full"
+                  >
+                    <LogOut className="w-5 h-5" />
+                    <span className="font-medium">Logout</span>
+                  </button>
+                </div>
               ) : (
                 <div className="flex flex-col gap-2">
                   <Link

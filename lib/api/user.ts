@@ -43,6 +43,13 @@ export const userApi = {
     return response.data;
   },
 
+  getProfessionals: async (): Promise<User[]> => {
+    const response = await apiClient.get<User[]>('/api/users', {
+      params: { role: 'PROFESSIONAL' },
+    });
+    return response.data;
+  },
+
   updateUserStatus: async (
     userId: number,
     body: { isVerified: boolean; isActive: boolean }

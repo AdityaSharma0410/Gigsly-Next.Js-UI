@@ -287,13 +287,14 @@ export default function AdminDashboardPage() {
           ].map((k) => {
             const Icon = k.icon;
             return (
-              <div key={k.label} className="bg-card border border-border rounded-xl p-4">
-                <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
+              <div key={k.label} className="bg-card border border-border rounded-xl p-4 hover-lift relative overflow-hidden">
+                <div className="absolute inset-x-0 -top-20 h-32 bg-gradient-to-r from-blue-600/10 via-purple-600/10 to-pink-600/10 blur-2xl" />
+                <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1 relative">
                   <Icon className="w-3.5 h-3.5" />
                   {k.label}
                 </div>
-                <p className="text-xl font-bold">{k.value}</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">{k.sub}</p>
+                <p className="text-xl font-bold relative">{k.value}</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5 relative">{k.sub}</p>
               </div>
             );
           })}
@@ -312,15 +313,93 @@ export default function AdminDashboardPage() {
         </div>
 
         {activeTab === 'overview' && (
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="bg-card border border-border rounded-xl p-6">
-              <h3 className="font-semibold mb-4 flex items-center gap-2">
-                <FolderTree className="w-5 h-5" />
-                Catalog
-              </h3>
-              <p className="text-sm text-muted-foreground mb-2">{categories.length} categories</p>
-              <p className="text-sm text-muted-foreground">{queries.length} contact messages total</p>
+          <div className="grid lg:grid-cols-3 gap-6">
+            <div className="bg-card border border-border rounded-xl p-6 lg:col-span-2">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <Activity className="w-5 h-5" />
+                  Activity snapshot
+                </h3>
+                <span className="text-xs text-muted-foreground">Updates on refresh</span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { label: 'Open gigs', value: openTasks, max: Math.max(1, tasks.length), from: 'from-blue-600', to: 'to-cyan-500' },
+                  { label: 'Total gigs', value: tasks.length, max: Math.max(1, tasks.length), from: 'from-purple-600', to: 'to-pink-500' },
+                  { label: 'Pending contact', value: pendingQueries, max: Math.max(1, queries.length), from: 'from-amber-500', to: 'to-orange-500' },
+                  { label: 'Suspended', value: suspendedUsers, max: Math.max(1, users.length), from: 'from-red-600', to: 'to-rose-500' },
+                ].map((m) => {
+                  const pct = Math.max(3, Math.min(100, Math.round((m.value / m.max) * 100)));
+                  return (
+                    <div key={m.label} className="border border-border rounded-xl p-4 bg-background/40">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
+                        <span>{m.label}</span>
+                        <span className="font-medium text-foreground">{m.value}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-muted overflow-hidden">
+                        <div className={`h-full bg-gradient-to-r ${m.from} ${m.to}`} style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-6 grid md:grid-cols-3 gap-6 items-center">
+                <div className="md:col-span-1 flex items-center justify-center">
+                  {(() => {
+                    const total = Math.max(1, users.length);
+                    const c = Math.round((clients / total) * 360);
+                    const p = Math.round((professionals / total) * 360);
+                    const a = Math.max(0, 360 - c - p);
+                    const bg = `conic-gradient(#2563eb 0deg ${c}deg, #a855f7 ${c}deg ${c + p}deg, #f97316 ${c + p}deg ${c + p + a}deg)`;
+                    return (
+                      <div className="relative">
+                        <div
+                          className="w-40 h-40 rounded-full shadow-inner border border-border"
+                          style={{ background: bg }}
+                          aria-label="User role distribution pie chart"
+                        />
+                        <div className="absolute inset-0 m-auto w-20 h-20 rounded-full bg-card border border-border flex items-center justify-center">
+                          <div className="text-center">
+                            <div className="text-sm font-semibold">{users.length}</div>
+                            <div className="text-[10px] text-muted-foreground">users</div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+                <div className="md:col-span-2">
+                  <h4 className="font-semibold mb-2">User mix</h4>
+                  <p className="text-sm text-muted-foreground mb-4">Clients vs professionals vs admins.</p>
+                  <div className="grid sm:grid-cols-3 gap-3">
+                    <div className="border border-border rounded-xl p-4">
+                      <div className="text-xs text-muted-foreground mb-1 flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-blue-600" />
+                        Clients
+                      </div>
+                      <div className="text-xl font-bold">{clients}</div>
+                    </div>
+                    <div className="border border-border rounded-xl p-4">
+                      <div className="text-xs text-muted-foreground mb-1 flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-purple-600" />
+                        Professionals
+                      </div>
+                      <div className="text-xl font-bold">{professionals}</div>
+                    </div>
+                    <div className="border border-border rounded-xl p-4">
+                      <div className="text-xs text-muted-foreground mb-1 flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-orange-500" />
+                        Admins
+                      </div>
+                      <div className="text-xl font-bold">{admins}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
+
             <div className="bg-card border border-border rounded-xl p-6">
               <h3 className="font-semibold mb-4 flex items-center gap-2">
                 <Server className="w-5 h-5" />
@@ -349,6 +428,14 @@ export default function AdminDashboardPage() {
                   </code>
                 </li>
               </ul>
+              <div className="mt-6 border-t border-border pt-4">
+                <h4 className="font-semibold mb-2 flex items-center gap-2">
+                  <FolderTree className="w-4 h-4" />
+                  Catalog
+                </h4>
+                <p className="text-sm text-muted-foreground mb-1">{categories.length} categories</p>
+                <p className="text-sm text-muted-foreground">{queries.length} contact messages total</p>
+              </div>
             </div>
           </div>
         )}

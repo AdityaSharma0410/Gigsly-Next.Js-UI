@@ -1,15 +1,18 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useAuth, useRequireAuth } from '@/hooks/useAuth';
 import { chatApi, userApi, type ChatThread, type Message, type User } from '@/lib/api';
 import type { AxiosError } from 'axios';
 import { Send, Loader2, MessageSquare } from 'lucide-react';
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
+import Cookies from 'js-cookie';
 
 export default function ChatPage() {
   useRequireAuth();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [selectedThread, setSelectedThread] = useState<ChatThread | null>(null);
@@ -17,9 +20,14 @@ export default function ChatPage() {
   const [messageText, setMessageText] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [wsConnected, setWsConnected] = useState(false);
   const [otherUser, setOtherUser] = useState<User | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const stompClientRef = useRef<Client | null>(null);
+  const isNearBottomRef = useRef(true);
+  const forceScrollRef = useRef(false);
+  const forceTopRef = useRef(false);
 
   useEffect(() => {
     if (user) {
@@ -37,18 +45,44 @@ export default function ChatPage() {
     if (selectedThread) {
       loadMessages(selectedThread.id);
       loadOtherUser();
+      // When switching threads, start at TOP by default.
+      forceTopRef.current = true;
     }
   }, [selectedThread]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (!selectedThread) return;
+    // Poll only when realtime isn't connected.
+    if (wsConnected) return;
+    const timer = window.setInterval(() => {
+      loadMessages(selectedThread.id);
+    }, 7000);
+    return () => window.clearInterval(timer);
+  }, [selectedThread?.id, wsConnected]);
+
+  useEffect(() => {
+    if (forceTopRef.current) {
+      const el = messagesContainerRef.current;
+      if (el) el.scrollTop = 0;
+      forceTopRef.current = false;
+      return;
+    }
+
+    // Only autoscroll if user is already near the bottom, or when we explicitly force it
+    // (e.g. after sending a message).
+    if (forceScrollRef.current || isNearBottomRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: forceScrollRef.current ? 'auto' : 'smooth' });
+      forceScrollRef.current = false;
+    }
   }, [messages]);
 
   const connectWebSocket = () => {
     // WebSocket is served by chat-service (not the API gateway)
     const base = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:8088';
     const httpUrl = base.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://');
-    const socket = new SockJS(`${httpUrl.replace(/\/$/, '')}/ws`);
+    const token = Cookies.get('auth_token');
+    const qp = token ? `?token=${encodeURIComponent(token)}` : '';
+    const socket = new SockJS(`${httpUrl.replace(/\/$/, '')}/ws${qp}`);
     
     const stompClient = new Client({
       webSocketFactory: () => socket as any,
@@ -58,13 +92,22 @@ export default function ChatPage() {
     });
 
     stompClient.onConnect = () => {
+      setWsConnected(true);
       if (user) {
-        stompClient.subscribe(`/user/${user.id}/queue/messages`, (message) => {
+        stompClient.subscribe('/user/queue/messages', (message) => {
           const newMessage = JSON.parse(message.body);
-          setMessages(prev => [...prev, newMessage]);
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === newMessage.id)) return prev;
+            if (selectedThread && newMessage.threadId !== selectedThread.id) return prev;
+            return [...prev, newMessage];
+          });
+          loadThreads();
         });
       }
     };
+    stompClient.onStompError = () => setWsConnected(false);
+    stompClient.onWebSocketError = () => setWsConnected(false);
+    stompClient.onDisconnect = () => setWsConnected(false);
 
     stompClient.activate();
     stompClientRef.current = stompClient;
@@ -74,6 +117,14 @@ export default function ChatPage() {
     try {
       const data = await chatApi.getThreads();
       setThreads(data);
+      const threadIdFromUrl = Number(searchParams.get('threadId'));
+      if (threadIdFromUrl) {
+        const found = data.find((t) => t.id === threadIdFromUrl);
+        if (found) {
+          setSelectedThread(found);
+          return;
+        }
+      }
       if (data.length > 0 && !selectedThread) {
         setSelectedThread(data[0]);
       }
@@ -88,7 +139,12 @@ export default function ChatPage() {
   const loadMessages = async (threadId: number) => {
     try {
       const list = await chatApi.getMessages(threadId);
-      setMessages([...list].reverse());
+      setMessages(list);
+      await chatApi.markThreadRead(threadId).catch(() => undefined);
+      // Keep thread list fresh, but avoid hammering backend on every message refresh.
+      setThreads((prev) =>
+        prev.map((t) => (t.id === threadId ? { ...t, unreadCount: 0 } : t))
+      );
     } catch (error) {
       console.error('Failed to load messages', error);
     }
@@ -118,6 +174,7 @@ export default function ChatPage() {
         content: messageText,
         messageType: 'TEXT',
       });
+      forceScrollRef.current = true;
       await loadMessages(selectedThread.id);
       setMessageText('');
     } catch (error) {
@@ -138,7 +195,10 @@ export default function ChatPage() {
   return (
     <div className="min-h-screen py-20">
       <div className="container mx-auto px-4 h-[calc(100vh-10rem)]">
-        <h1 className="text-3xl font-bold mb-6">Messages</h1>
+        <h1 className="text-3xl font-bold mb-2">Messages</h1>
+        <p className="text-sm text-muted-foreground mb-4">
+          {wsConnected ? 'Realtime connected' : 'Realtime reconnecting (polling enabled)'}
+        </p>
 
         <div className="grid lg:grid-cols-3 gap-6 h-full">
           {/* Thread List */}
@@ -203,7 +263,17 @@ export default function ChatPage() {
                 </div>
 
                 {/* Messages */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <div
+                  ref={messagesContainerRef}
+                  className="flex-1 overflow-y-auto p-4 space-y-4"
+                  onScroll={() => {
+                    const el = messagesContainerRef.current;
+                    if (!el) return;
+                    const threshold = 120;
+                    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+                    isNearBottomRef.current = distanceFromBottom <= threshold;
+                  }}
+                >
                   {messages.map((message) => {
                     const isOwnMessage = message.senderId === user?.id;
                     return (

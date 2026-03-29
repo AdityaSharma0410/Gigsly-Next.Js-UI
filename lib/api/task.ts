@@ -74,4 +74,16 @@ export const taskApi = {
     });
     return response.data;
   },
+
+  updateStatus: async (
+    taskId: number,
+    status: 'OPEN' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'CLOSED',
+    assignedProfessionalId?: number
+  ): Promise<Task> => {
+    const response = await apiClient.post<Task>(`/api/tasks/${taskId}/status`, {
+      status,
+      assignedProfessionalId,
+    });
+    return response.data;
+  },
 };

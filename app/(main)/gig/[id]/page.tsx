@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { taskApi, userApi, reviewApi, proposalApi, categoryApi, type Task, type User, type Review, type Category } from '@/lib/api';
+import { taskApi, userApi, reviewApi, proposalApi, categoryApi, chatApi, type Task, type User, type Review, type Category, type Proposal } from '@/lib/api';
 import { formatTaskBudget } from '@/lib/taskDisplay';
 import { useAuth } from '@/lib/contexts/AuthContext';
-import { Briefcase, User as UserIcon, Star, Calendar, DollarSign, Clock, Send, Loader2, AlertCircle } from 'lucide-react';
+import { Briefcase, User as UserIcon, Star, Calendar, DollarSign, Clock, Send, Loader2, AlertCircle, MessageSquare } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 
@@ -17,17 +17,21 @@ export default function GigDetailPage() {
   const [category, setCategory] = useState<Category | null>(null);
   const [seller, setSeller] = useState<User | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [taskProposals, setTaskProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [proposalText, setProposalText] = useState('');
   const [proposalAmount, setProposalAmount] = useState('');
   const [proposalDuration, setProposalDuration] = useState('');
+  const [reviewText, setReviewText] = useState('');
+  const [reviewRating, setReviewRating] = useState(5);
   const [submitting, setSubmitting] = useState(false);
+  const [submittingReview, setSubmittingReview] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
     loadGigData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.id]);
+  }, [params.id, user?.id]);
 
   const loadGigData = async () => {
     try {
@@ -43,6 +47,12 @@ export default function GigDetailPage() {
 
       const reviewsData = await reviewApi.getByTask(gigData.id);
       setReviews(reviewsData);
+      if (user && user.id === gigData.clientId) {
+        const p = await proposalApi.getByTask(gigData.id).catch(() => [] as Proposal[]);
+        setTaskProposals(p);
+      } else {
+        setTaskProposals([]);
+      }
     } catch (error) {
       console.error('Failed to load gig', error);
       setError('Failed to load gig details');
@@ -80,6 +90,68 @@ export default function GigDetailPage() {
       setError(error.response?.data?.message || 'Failed to submit proposal');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const isTaskOwner = !!(user && task && user.id === task.clientId);
+  const isAssignedProfessional = !!(user && task && task.assignedProfessionalId && user.id === task.assignedProfessionalId);
+  const canReview = !!(task && user && task.status === 'COMPLETED' && (isTaskOwner || isAssignedProfessional));
+
+  const handleProposalStatus = async (proposalId: number, status: 'ACCEPTED' | 'REJECTED') => {
+    try {
+      await proposalApi.updateStatus(proposalId, status);
+      await loadGigData();
+    } catch (e: any) {
+      setError(e.response?.data?.message || 'Failed to update proposal status');
+    }
+  };
+
+  const handleTaskStatus = async (status: 'IN_PROGRESS' | 'COMPLETED') => {
+    if (!task) return;
+    try {
+      await taskApi.updateStatus(task.id, status, task.assignedProfessionalId);
+      await loadGigData();
+    } catch (e: any) {
+      setError(e.response?.data?.message || 'Failed to update task status');
+    }
+  };
+
+  const handleStartChat = async () => {
+    if (!isAuthenticated || !task || !user) {
+      router.push('/login');
+      return;
+    }
+    const otherUserId = user.id === task.clientId ? task.assignedProfessionalId : task.clientId;
+    if (!otherUserId) {
+      setError('Assign a professional first to start chat');
+      return;
+    }
+    try {
+      const thread = await chatApi.getOrCreateThread(otherUserId, task.id);
+      router.push(`/chat?threadId=${thread.id}`);
+    } catch (e: any) {
+      setError(e.response?.data?.message || 'Could not open chat');
+    }
+  };
+
+  const handleSubmitReview = async () => {
+    if (!task || !user || !canReview) return;
+    const revieweeId = user.id === task.clientId ? task.assignedProfessionalId : task.clientId;
+    if (!revieweeId) return;
+    setSubmittingReview(true);
+    try {
+      await reviewApi.create({
+        taskId: task.id,
+        revieweeId,
+        rating: reviewRating,
+        comment: reviewText || undefined,
+      });
+      setReviewText('');
+      await loadGigData();
+    } catch (e: any) {
+      setError(e.response?.data?.message || 'Failed to submit review');
+    } finally {
+      setSubmittingReview(false);
     }
   };
 
@@ -182,6 +254,83 @@ export default function GigDetailPage() {
                 )}
               </div>
 
+              {isTaskOwner && (
+                <div className="bg-card border border-border rounded-xl p-6 mb-6">
+                  <h2 className="text-xl font-bold mb-4">Proposals</h2>
+                  {taskProposals.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No proposals yet.</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {taskProposals.map((proposal) => (
+                        <div key={proposal.id} className="border border-border rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className={`text-xs px-2 py-1 rounded-full ${
+                              proposal.status === 'PENDING'
+                                ? 'bg-yellow-600/10 text-yellow-600'
+                                : proposal.status === 'ACCEPTED'
+                                ? 'bg-green-600/10 text-green-600'
+                                : 'bg-red-600/10 text-red-600'
+                            }`}>
+                              {proposal.status}
+                            </span>
+                            <span className="font-bold text-blue-600">₹{proposal.proposedAmount ?? 0}</span>
+                          </div>
+                          <p className="text-sm mb-2">{proposal.message}</p>
+                          <p className="text-xs text-muted-foreground mb-3">Duration: {proposal.estimatedDuration ?? '—'}</p>
+                          {proposal.status === 'PENDING' && (
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleProposalStatus(proposal.id, 'ACCEPTED')}
+                                className="text-xs px-3 py-1.5 rounded-lg bg-green-600/10 text-green-700 hover:bg-green-600/20"
+                              >
+                                Accept
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleProposalStatus(proposal.id, 'REJECTED')}
+                                className="text-xs px-3 py-1.5 rounded-lg bg-red-600/10 text-red-700 hover:bg-red-600/20"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {isTaskOwner && (
+                <div className="bg-card border border-border rounded-xl p-6 mb-6">
+                  <h2 className="text-xl font-bold mb-4">Task Progress</h2>
+                  <div className="flex gap-2">
+                    {task.status === 'OPEN' && task.assignedProfessionalId && (
+                      <button
+                        type="button"
+                        onClick={() => handleTaskStatus('IN_PROGRESS')}
+                        className="text-sm px-3 py-2 rounded-lg bg-yellow-600/10 text-yellow-700 hover:bg-yellow-600/20"
+                      >
+                        Mark In Progress
+                      </button>
+                    )}
+                    {task.status === 'IN_PROGRESS' && (
+                      <button
+                        type="button"
+                        onClick={() => handleTaskStatus('COMPLETED')}
+                        className="text-sm px-3 py-2 rounded-lg bg-green-600/10 text-green-700 hover:bg-green-600/20"
+                      >
+                        Mark Completed
+                      </button>
+                    )}
+                    {!task.assignedProfessionalId && (
+                      <p className="text-sm text-muted-foreground">Accept a proposal first to update progress.</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {reviews.length > 0 && (
                 <div className="bg-card border border-border rounded-xl p-6">
                   <h2 className="text-xl font-bold mb-4">Reviews</h2>
@@ -200,6 +349,44 @@ export default function GigDetailPage() {
                         </p>
                       </div>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {canReview && (
+                <div className="bg-card border border-border rounded-xl p-6 mt-6">
+                  <h2 className="text-xl font-bold mb-4">Leave a Review</h2>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Rating</label>
+                      <select
+                        value={reviewRating}
+                        onChange={(e) => setReviewRating(Number(e.target.value))}
+                        className="w-full p-3 rounded-lg border border-border bg-background"
+                      >
+                        {[5, 4, 3, 2, 1].map((r) => (
+                          <option key={r} value={r}>{r} star{r > 1 ? 's' : ''}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Comment</label>
+                      <textarea
+                        value={reviewText}
+                        onChange={(e) => setReviewText(e.target.value)}
+                        rows={3}
+                        placeholder="Share your feedback"
+                        className="w-full p-3 rounded-lg border border-border bg-background"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleSubmitReview}
+                      disabled={submittingReview}
+                      className="px-4 py-2 rounded-lg gradient-hero text-white font-semibold hover:opacity-90 disabled:opacity-50"
+                    >
+                      {submittingReview ? 'Submitting...' : 'Submit Review'}
+                    </button>
                   </div>
                 </div>
               )}
@@ -231,6 +418,16 @@ export default function GigDetailPage() {
                   >
                     View Profile
                   </Link>
+                  {isAuthenticated && user?.id !== seller.id && (
+                    <button
+                      type="button"
+                      onClick={handleStartChat}
+                      className="mt-2 w-full text-center py-2 px-4 rounded-lg bg-blue-600/10 text-blue-700 hover:bg-blue-600/20 inline-flex items-center justify-center gap-2"
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                      Message
+                    </button>
+                  )}
                 </motion.div>
               )}
 

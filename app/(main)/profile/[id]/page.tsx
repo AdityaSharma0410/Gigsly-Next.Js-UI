@@ -1,13 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { userApi, reviewApi, type User, type Review } from '@/lib/api';
-import { Loader2, AlertCircle, Star, ArrowLeft } from 'lucide-react';
+import { userApi, reviewApi, chatApi, type User, type Review } from '@/lib/api';
+import { Loader2, AlertCircle, Star, ArrowLeft, MessageSquare } from 'lucide-react';
+import { useAuth } from '@/lib/contexts/AuthContext';
 
 export default function PublicProfilePage() {
   const params = useParams();
+  const router = useRouter();
+  const { user: currentUser, isAuthenticated } = useAuth();
   const id = Number(params.id);
   const [user, setUser] = useState<User | null>(null);
   const [rating, setRating] = useState<{ average: number; total: number } | null>(null);
@@ -107,6 +110,23 @@ export default function PublicProfilePage() {
                 </div>
               )}
               {user.bio && <p className="text-muted-foreground whitespace-pre-wrap">{user.bio}</p>}
+              {isAuthenticated && currentUser && currentUser.id !== user.id && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const thread = await chatApi.getOrCreateThread(user.id);
+                      router.push(`/chat?threadId=${thread.id}`);
+                    } catch (e) {
+                      console.error('Failed to start chat', e);
+                    }
+                  }}
+                  className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600/10 text-blue-700 hover:bg-blue-600/20"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  Message
+                </button>
+              )}
             </div>
           </div>
 
