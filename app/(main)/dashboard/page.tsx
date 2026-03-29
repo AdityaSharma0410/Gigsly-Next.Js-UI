@@ -1,0 +1,191 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useAuth, useRequireAuth } from '@/hooks/useAuth';
+import { taskApi, proposalApi, type Task, type Proposal } from '@/lib/api';
+import Link from 'next/link';
+import { Briefcase, FileText, TrendingUp, DollarSign, Loader2, Plus } from 'lucide-react';
+
+export default function DashboardPage() {
+  useRequireAuth();
+  const { user } = useAuth();
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (user) loadDashboardData();
+  }, [user]);
+
+  const loadDashboardData = async () => {
+    if (!user) return;
+    try {
+      if (user.role === 'CLIENT') {
+        const myTasks = await taskApi.getClientTasks(user.id);
+        setTasks(myTasks);
+      } else if (user.role === 'PROFESSIONAL') {
+        const myProposals = await proposalApi.getByProfessional(user.id);
+        setProposals(myProposals);
+      }
+    } catch (error) {
+      console.error('Failed to load dashboard', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen py-20">
+      <div className="container mx-auto px-4">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-4xl font-bold mb-2">Dashboard</h1>
+            <p className="text-muted-foreground">Welcome back, {user?.name}!</p>
+          </div>
+          {user?.role === 'CLIENT' && (
+            <Link
+              href="/create-gig"
+              className="flex items-center gap-2 px-6 py-3 rounded-xl gradient-hero text-white font-semibold hover:opacity-90"
+            >
+              <Plus className="w-5 h-5" />
+              Create Gig
+            </Link>
+          )}
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid md:grid-cols-4 gap-6 mb-8">
+          <div className="bg-card border border-border rounded-xl p-6">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-muted-foreground">Total Gigs</span>
+              <Briefcase className="w-5 h-5 text-blue-600" />
+            </div>
+            <p className="text-2xl font-bold">{tasks.length}</p>
+          </div>
+          <div className="bg-card border border-border rounded-xl p-6">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-muted-foreground">Proposals</span>
+              <FileText className="w-5 h-5 text-green-600" />
+            </div>
+            <p className="text-2xl font-bold">{proposals.length}</p>
+          </div>
+          <div className="bg-card border border-border rounded-xl p-6">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-muted-foreground">Active</span>
+              <TrendingUp className="w-5 h-5 text-orange-600" />
+            </div>
+            <p className="text-2xl font-bold">
+              {user?.role === 'CLIENT' 
+                ? tasks.filter(t => t.status === 'IN_PROGRESS').length
+                : proposals.filter(p => p.status === 'ACCEPTED').length}
+            </p>
+          </div>
+          <div className="bg-card border border-border rounded-xl p-6">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-muted-foreground">Earnings</span>
+              <DollarSign className="w-5 h-5 text-purple-600" />
+            </div>
+            <p className="text-2xl font-bold">₹0</p>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        {user?.role === 'CLIENT' ? (
+          <div>
+            <h2 className="text-2xl font-bold mb-4">My Gigs</h2>
+            {tasks.length === 0 ? (
+              <div className="text-center py-20 bg-card border border-border rounded-xl">
+                <Briefcase className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+                <p className="text-muted-foreground mb-4">You haven&apos;t created any gigs yet</p>
+                <Link
+                  href="/create-gig"
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl gradient-hero text-white font-semibold hover:opacity-90"
+                >
+                  <Plus className="w-5 h-5" />
+                  Create Your First Gig
+                </Link>
+              </div>
+            ) : (
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {tasks.map((task) => (
+                  <Link
+                    key={task.id}
+                    href={`/gig/${task.id}`}
+                    className="block border border-border rounded-xl p-6 hover-lift bg-card"
+                  >
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className={`text-xs px-2 py-1 rounded-full ${
+                        task.status === 'OPEN' ? 'bg-green-600/10 text-green-600' :
+                        task.status === 'IN_PROGRESS' ? 'bg-yellow-600/10 text-yellow-600' :
+                        'bg-gray-600/10 text-gray-600'
+                      }`}>
+                        {task.status}
+                      </span>
+                    </div>
+                    <h3 className="font-semibold mb-2 line-clamp-2">{task.title}</h3>
+                    <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                      {task.description}
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">{task.category}</span>
+                      <span className="text-lg font-bold text-blue-600">₹{task.budget}</span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div>
+            <h2 className="text-2xl font-bold mb-4">My Proposals</h2>
+            {proposals.length === 0 ? (
+              <div className="text-center py-20 bg-card border border-border rounded-xl">
+                <FileText className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+                <p className="text-muted-foreground mb-4">You haven&apos;t submitted any proposals yet</p>
+                <Link
+                  href="/find-work"
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl gradient-hero text-white font-semibold hover:opacity-90"
+                >
+                  Find Work
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {proposals.map((proposal) => (
+                  <div
+                    key={proposal.id}
+                    className="border border-border rounded-xl p-6 bg-card"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <span className={`text-xs px-2 py-1 rounded-full ${
+                        proposal.status === 'PENDING' ? 'bg-yellow-600/10 text-yellow-600' :
+                        proposal.status === 'ACCEPTED' ? 'bg-green-600/10 text-green-600' :
+                        'bg-red-600/10 text-red-600'
+                      }`}>
+                        {proposal.status}
+                      </span>
+                      <span className="text-lg font-bold text-blue-600">₹{proposal.proposedAmount}</span>
+                    </div>
+                    <p className="text-sm mb-2 line-clamp-2">{proposal.coverLetter}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Estimated: {proposal.estimatedDuration} days • 
+                      Submitted {new Date(proposal.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
