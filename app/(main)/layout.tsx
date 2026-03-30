@@ -97,9 +97,9 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
   const scrollT = Math.min(1, scrollY / 180);
   const headerBlur = 12 + (1 - scrollT) * 14;
-  const headerTop = 0.72 + (1 - scrollT) * 0.14;
-  const headerMid = 0.38 + (1 - scrollT) * 0.14;
-  const headerBot = 0.06 + scrollT * 0.16;
+  const headerTop = 0.62 + (1 - scrollT) * 0.14;
+  const headerMid = 0.28 + (1 - scrollT) * 0.14;
+  const headerBot = 0.04 + scrollT * 0.16;
 
   return (
     <div className="min-h-screen flex flex-col">

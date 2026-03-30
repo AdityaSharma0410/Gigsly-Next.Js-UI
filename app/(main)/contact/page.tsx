@@ -49,15 +49,17 @@ export default function ContactPage() {
         }}
       />
       <ParallaxFloat
+        glassTint="sky"
         distance={64}
         scrollRange={[0, 400]}
-        className="pointer-events-none absolute top-24 left-[4%] -z-10 hidden h-32 w-40 rounded-2xl border border-border/40 bg-card/25 shadow-lg backdrop-blur-md md:block"
+        className="pointer-events-none absolute top-24 left-[4%] -z-10 hidden h-32 w-40 md:block"
       />
       <ParallaxFloat
+        glassTint="violet"
         distance={96}
         distanceX={12}
         scrollRange={[0, 400]}
-        className="pointer-events-none absolute bottom-32 right-[6%] -z-10 hidden h-28 w-48 rounded-2xl border border-border/40 bg-card/20 backdrop-blur-md md:block"
+        className="pointer-events-none absolute bottom-32 right-[6%] -z-10 hidden h-28 w-48 md:block"
       />
       <div className="container mx-auto max-w-2xl relative z-10">
         <div className="text-center mb-10">

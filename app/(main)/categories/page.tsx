@@ -5,6 +5,7 @@ import { categoryApi, type Category } from '@/lib/api';
 import Link from 'next/link';
 import { Loader2, FolderOpen } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { CategoryIconTile } from '@/lib/categoryVisuals';
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -59,7 +60,7 @@ export default function CategoriesPage() {
                   href={`/browse?category=${encodeURIComponent(category.name)}`}
                   className="block p-8 rounded-xl border border-border bg-card hover-lift text-center group"
                 >
-                  <span className="text-5xl block mb-4">💼</span>
+                  <CategoryIconTile name={category.name} size="lg" />
                   <h3 className="font-semibold mb-2 group-hover:text-blue-600 transition-colors">
                     {category.name}
                   </h3>

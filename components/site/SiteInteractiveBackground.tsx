@@ -2,14 +2,16 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 
+type Ripple = { x: number; y: number; t0: number };
+
 /**
- * Full-viewport morphing grid: lines bend with subtle repulsion (near cursor)
- * and attraction (mid ring). pointer-events-none; uses window pointer events.
+ * Full-viewport morphing grid: cursor uses raw pointer position (no smoothing lag),
+ * edges drawn as quadratic curves for fabric-like bend, click ripples expand through AoE.
  */
 export default function SiteInteractiveBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const mouseRef = useRef({ x: -9999, y: -9999 });
   const targetMouseRef = useRef({ x: -9999, y: -9999 });
+  const ripplesRef = useRef<Ripple[]>([]);
   const rafRef = useRef<number>(0);
 
   const stateRef = useRef<{
@@ -70,6 +72,21 @@ export default function SiteInteractiveBackground() {
       targetMouseRef.current = { x: -9999, y: -9999 };
     };
 
+    /** Ripple on “background” clicks — skip interactive controls */
+    const onPointerDown = (e: PointerEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (!el) return;
+      if (
+        el.closest(
+          'a, button, input, textarea, select, option, label, [role="button"], [role="tab"], [role="menuitem"], [data-no-grid-ripple]'
+        )
+      ) {
+        return;
+      }
+      ripplesRef.current.push({ x: e.clientX, y: e.clientY, t0: performance.now() });
+      if (ripplesRef.current.length > 6) ripplesRef.current.shift();
+    };
+
     const resize = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const w = window.innerWidth;
@@ -85,9 +102,12 @@ export default function SiteInteractiveBackground() {
     window.addEventListener('resize', resize);
     window.addEventListener('pointermove', onPointer, { passive: true });
     window.addEventListener('pointerleave', onLeave);
+    window.addEventListener('pointerdown', onPointerDown, { capture: true });
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
+    const idx = (cols: number, r: number, c: number) => r * cols + c;
 
     const step = () => {
       const st = stateRef.current;
@@ -96,14 +116,10 @@ export default function SiteInteractiveBackground() {
         return;
       }
 
-      const { mx, my } = (() => {
-        const t = targetMouseRef.current;
-        const cur = mouseRef.current;
-        const lerp = 0.18;
-        cur.x += (t.x - cur.x) * lerp;
-        cur.y += (t.y - cur.y) * lerp;
-        return { mx: cur.x, my: cur.y };
-      })();
+      const now = performance.now();
+
+      const mx = targetMouseRef.current.x;
+      const my = targetMouseRef.current.y;
 
       const {
         cols,
@@ -118,16 +134,17 @@ export default function SiteInteractiveBackground() {
         dpr,
       } = st;
 
-      const lineColor = document.documentElement.classList.contains('dark')
-        ? 'rgba(148,163,184,0.24)'
-        : 'rgba(71,85,105,0.22)';
+      const isDark = document.documentElement.classList.contains('dark');
+      const lineColor = isDark ? 'rgba(203, 213, 225, 0.52)' : 'rgba(71, 85, 105, 0.32)';
 
-      const kRest = 0.095;
+      const kRest = 0.118;
       const repelR = 165;
       const repelS = 4.2;
       const attractLo = 115;
       const attractHi = 400;
       const attractS = 1.15;
+
+      const velDamp = 0.89;
 
       for (let i = 0; i < count; i++) {
         const bx = baseX[i];
@@ -159,40 +176,121 @@ export default function SiteInteractiveBackground() {
           }
         }
 
-        velX[i] = velX[i] * 0.86 + ax;
-        velY[i] = velY[i] * 0.86 + ay;
+        const ripples = ripplesRef.current;
+        for (let ri = 0; ri < ripples.length; ri++) {
+          const rp = ripples[ri];
+          const age = (now - rp.t0) / 1000;
+          if (age > 2.2) continue;
+
+          const rdx = px - rp.x;
+          const rdy = py - rp.y;
+          const dist = Math.hypot(rdx, rdy) || 1e-6;
+          const rux = rdx / dist;
+          const ruy = rdy / dist;
+
+          const rippleAoE = 340;
+          if (dist > rippleAoE) continue;
+
+          const waveSpeed = 380;
+          const wavePos = age * waveSpeed;
+          const ringEnvelope = Math.exp(-Math.pow((dist - wavePos) / 42, 2));
+          const timeDecay = Math.exp(-age * 1.05);
+          const spatialFalloff = Math.max(0, 1 - dist / rippleAoE);
+          const amp = ringEnvelope * timeDecay * spatialFalloff * 11;
+
+          ax += rux * amp;
+          ay += ruy * amp;
+
+          const tx = -ruy;
+          const ty = rux;
+          const twist = ringEnvelope * timeDecay * spatialFalloff * Math.sin(dist * 0.045 - age * 8) * 1.8;
+          ax += tx * twist;
+          ay += ty * twist;
+        }
+
+        velX[i] = velX[i] * velDamp + ax;
+        velY[i] = velY[i] * velDamp + ay;
         posX[i] += velX[i];
         posY[i] += velY[i];
       }
+
+      ripplesRef.current = ripplesRef.current.filter((r) => now - r.t0 < 2200);
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
 
       ctx.strokeStyle = lineColor;
-      ctx.lineWidth = 1;
+      ctx.lineWidth = isDark ? 2.25 : 1.65;
       ctx.lineCap = 'round';
-      ctx.globalAlpha = 0.85;
+      ctx.lineJoin = 'round';
+      ctx.globalAlpha = isDark ? 1 : 0.92;
 
-      const idx = (r: number, c: number) => r * cols + c;
+      /** Straight segments by default; sub-pixel quadratic only when cursor is near edge midpoint. */
+      const curveFalloffPx = 210;
+      const maxBulgePx = 2.15;
+
+      const drawEdge = (ia: number, ib: number) => {
+        const x0 = posX[ia];
+        const y0 = posY[ia];
+        const x1 = posX[ib];
+        const y1 = posY[ib];
+        const bx0 = baseX[ia];
+        const by0 = baseY[ia];
+        const bx1 = baseX[ib];
+        const by1 = baseY[ib];
+
+        const mxx = (x0 + x1) * 0.5;
+        const myy = (y0 + y1) * 0.5;
+        const ex = x1 - x0;
+        const ey = y1 - y0;
+        const el = Math.hypot(ex, ey) || 1e-6;
+        const nx = -ey / el;
+        const ny = ex / el;
+
+        const d0x = x0 - bx0;
+        const d0y = y0 - by0;
+        const d1x = x1 - bx1;
+        const d1y = y1 - by1;
+        const m0 = Math.hypot(d0x, d0y);
+        const m1 = Math.hypot(d1x, d1y);
+        const dispSum = m0 + m1;
+
+        const edx = mxx - mx;
+        const edy = myy - my;
+        const dMouse = Math.hypot(edx, edy);
+        const near =
+          mx < -9000
+            ? 0
+            : Math.exp(-(dMouse * dMouse) / (curveFalloffPx * curveFalloffPx));
+
+        const signed = (d0x + d1x) * nx + (d0y + d1y) * ny;
+        const dir = Math.abs(signed) > 0.004 ? Math.sign(signed) : 1;
+
+        const bulge =
+          near > 0.02
+            ? Math.min(maxBulgePx, near * (0.35 + dispSum * 0.022)) * dir
+            : 0;
+
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        if (Math.abs(bulge) < 0.12) {
+          ctx.lineTo(x1, y1);
+        } else {
+          const cpx = mxx + nx * bulge;
+          const cpy = myy + ny * bulge;
+          ctx.quadraticCurveTo(cpx, cpy, x1, y1);
+        }
+        ctx.stroke();
+      };
 
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
-          const i = idx(r, c);
-          const x0 = posX[i];
-          const y0 = posY[i];
+          const i = idx(cols, r, c);
           if (c < cols - 1) {
-            const j = idx(r, c + 1);
-            ctx.beginPath();
-            ctx.moveTo(x0, y0);
-            ctx.lineTo(posX[j], posY[j]);
-            ctx.stroke();
+            drawEdge(i, idx(cols, r, c + 1));
           }
           if (r < rows - 1) {
-            const j = idx(r + 1, c);
-            ctx.beginPath();
-            ctx.moveTo(x0, y0);
-            ctx.lineTo(posX[j], posY[j]);
-            ctx.stroke();
+            drawEdge(i, idx(cols, r + 1, c));
           }
         }
       }
@@ -208,6 +306,7 @@ export default function SiteInteractiveBackground() {
       window.removeEventListener('resize', resize);
       window.removeEventListener('pointermove', onPointer);
       window.removeEventListener('pointerleave', onLeave);
+      window.removeEventListener('pointerdown', onPointerDown, { capture: true });
       cancelAnimationFrame(rafRef.current);
     };
   }, [buildGrid]);

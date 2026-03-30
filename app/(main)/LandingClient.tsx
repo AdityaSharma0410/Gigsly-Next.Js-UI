@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Search, ArrowRight, Users, Briefcase, Shield } from 'lucide-react';
 import type { Category, Task } from '@/lib/api/types';
 import { formatTaskBudget } from '@/lib/taskDisplay';
+import { CategoryIconTile } from '@/lib/categoryVisuals';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
@@ -57,21 +58,24 @@ export default function LandingClient({ categories, featuredGigs }: LandingClien
         <div className="absolute bottom-10 left-10 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl animate-float" style={{ animationDelay: '1.5s' }} />
 
         <ParallaxFloat
+          glassTint="emerald"
           distance={96}
           distanceX={-10}
           scrollRange={[0, 560]}
-          className="pointer-events-none absolute -top-10 left-[6%] z-0 hidden h-44 w-44 rounded-2xl border border-border/50 bg-card/35 shadow-xl backdrop-blur-xl md:block"
+          className="pointer-events-none absolute -top-10 left-[6%] z-0 hidden h-44 w-44 md:block"
         />
         <ParallaxFloat
+          glassTint="indigo"
           distance={132}
           distanceX={-10}
           scrollRange={[0, 560]}
-          className="pointer-events-none absolute top-36 right-[10%] z-0 hidden h-36 w-52 rounded-2xl border border-border/45 bg-card/30 shadow-lg backdrop-blur-xl md:block"
+          className="pointer-events-none absolute top-36 right-[10%] z-0 hidden h-36 w-52 md:block"
         />
         <ParallaxFloat
+          glassTint="amber"
           distance={72}
           scrollRange={[0, 560]}
-          className="pointer-events-none absolute bottom-8 left-[20%] z-0 hidden h-28 w-56 rounded-2xl border border-border/50 bg-gradient-to-br from-blue-600/12 to-purple-600/10 backdrop-blur-md md:block"
+          className="pointer-events-none absolute bottom-8 left-[20%] z-0 hidden h-28 w-56 md:block"
         />
 
         <div className="container mx-auto relative z-10">
@@ -173,7 +177,7 @@ export default function LandingClient({ categories, featuredGigs }: LandingClien
                     href={`/category/${cat.id}`}
                     className="block p-6 rounded-xl border border-border glass-surface hover-lift text-center group"
                   >
-                    <span className="text-4xl block mb-3">💼</span>
+                    <CategoryIconTile name={cat.name} />
                     <h3 className="font-semibold group-hover:text-blue-600 transition-colors">{cat.name}</h3>
                     <p className="text-sm text-muted-foreground mt-1">View services</p>
                   </Link>

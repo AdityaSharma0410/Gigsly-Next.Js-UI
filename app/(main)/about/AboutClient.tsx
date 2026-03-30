@@ -33,17 +33,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ParallaxFloat } from '@/components/motion/ParallaxFloat';
 
 const sectionClass =
-  'relative min-h-screen flex flex-col justify-center py-24 md:py-32 px-4 snap-start snap-always overflow-hidden';
-
-function useSnapScroll() {
-  useEffect(() => {
-    const prev = document.documentElement.style.scrollSnapType;
-    document.documentElement.style.scrollSnapType = 'y mandatory';
-    return () => {
-      document.documentElement.style.scrollSnapType = prev;
-    };
-  }, []);
-}
+  'relative min-h-screen flex flex-col justify-center py-24 md:py-32 px-4 overflow-hidden';
 
 function AnimatedCounter({
   value,
@@ -222,12 +212,16 @@ const features = [
 ];
 
 export default function AboutClient() {
-  useSnapScroll();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const reg = (path: string) => `/register?next=${encodeURIComponent(path)}`;
   const exploreHref = isAuthenticated ? '/browse' : reg('/browse');
   const hireHref = isAuthenticated ? '/create-gig' : reg('/create-gig');
   const workHref = isAuthenticated ? '/find-work' : reg('/find-work');
+
+  /** Final CTA: guests see both; clients hire only; professionals find work only; admins see neither hire/work. */
+  const showHireCta = !isAuthenticated || user?.role === 'CLIENT';
+  const showWorkCta = !isAuthenticated || user?.role === 'PROFESSIONAL';
+  const isAdminUser = user?.role === 'ADMIN';
 
   const [bootDone, setBootDone] = useState(false);
   useEffect(() => {
@@ -310,24 +304,28 @@ export default function AboutClient() {
       {/* Section 1 — Hero */}
       <section id="about-hero" className={sectionClass}>
         <div className="absolute inset-0 -z-10">
+          {/* Wash behind glass so backdrop-blur samples grid + tint; glass panels sit above */}
+          <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(ellipse_90%_60%_at_50%_20%,hsl(var(--primary)/0.12),transparent_60%)]" />
           <ParallaxFloat
+            glassTint="sky"
             distance={112}
             distanceX={-12}
             scrollRange={[0, 520]}
-            className="absolute -top-24 left-[8%] h-40 w-56 rounded-2xl border border-border/50 bg-card/40 backdrop-blur-xl shadow-xl"
+            className="pointer-events-none absolute -top-24 left-[8%] z-[1] h-40 w-56"
           />
           <ParallaxFloat
+            glassTint="violet"
             distance={156}
             distanceX={16}
             scrollRange={[0, 520]}
-            className="absolute top-32 right-[6%] h-36 w-48 rounded-2xl border border-border/50 bg-card/35 backdrop-blur-xl shadow-lg"
+            className="pointer-events-none absolute top-32 right-[6%] z-[1] h-36 w-48"
           />
           <ParallaxFloat
+            glassTint="rose"
             distance={88}
             scrollRange={[0, 520]}
-            className="absolute bottom-24 left-[18%] h-32 w-64 rounded-2xl border border-border/50 bg-gradient-to-br from-blue-600/15 to-purple-600/10 backdrop-blur-md"
+            className="pointer-events-none absolute bottom-24 left-[18%] z-[1] h-32 w-64"
           />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_90%_60%_at_50%_20%,hsl(var(--primary)/0.12),transparent_60%)]" />
         </div>
 
         <div className="container mx-auto max-w-5xl">
@@ -717,23 +715,46 @@ export default function AboutClient() {
               Ready to Build Something <span className="text-gradient">Extraordinary?</span>
             </h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Whether you&apos;re hiring talent or looking for your next project, Gigsly is built to help you move faster
-              with confidence.
+              {isAdminUser ? (
+                <>
+                  Oversee users, gigs, and platform operations from your admin tools—everything you need in one place.
+                </>
+              ) : (
+                <>
+                  Whether you&apos;re hiring talent or looking for your next project, Gigsly is built to help you move
+                  faster with confidence.
+                </>
+              )}
             </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link
-                href={hireHref}
-                className="inline-flex min-w-[200px] justify-center rounded-2xl px-10 py-4 text-base font-semibold text-white gradient-hero shadow-[0_0_40px_hsl(217_91%_60%/0.35)] transition hover:opacity-95"
-              >
-                Start Hiring
-              </Link>
-              <Link
-                href={workHref}
-                className="inline-flex min-w-[200px] justify-center rounded-2xl border border-border bg-card/60 px-10 py-4 text-base font-semibold backdrop-blur-md transition hover:bg-muted/80"
-              >
-                Find Work
-              </Link>
-            </div>
+            {isAdminUser ? (
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <Link
+                  href="/admin"
+                  className="inline-flex min-w-[240px] justify-center rounded-2xl px-10 py-4 text-base font-semibold text-white gradient-hero shadow-[0_0_40px_hsl(217_91%_60%/0.35)] transition hover:opacity-95"
+                >
+                  Open admin dashboard
+                </Link>
+              </div>
+            ) : (
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                {showHireCta && (
+                  <Link
+                    href={hireHref}
+                    className="inline-flex min-w-[200px] justify-center rounded-2xl px-10 py-4 text-base font-semibold text-white gradient-hero shadow-[0_0_40px_hsl(217_91%_60%/0.35)] transition hover:opacity-95"
+                  >
+                    Start Hiring
+                  </Link>
+                )}
+                {showWorkCta && (
+                  <Link
+                    href={workHref}
+                    className="inline-flex min-w-[200px] justify-center rounded-2xl border border-border bg-card/60 px-10 py-4 text-base font-semibold backdrop-blur-md transition hover:bg-muted/80"
+                  >
+                    Find Work
+                  </Link>
+                )}
+              </div>
+            )}
           </motion.div>
           <motion.div
             initial={{ opacity: 0 }}
