@@ -18,7 +18,20 @@ export interface ContactQuery {
   updatedAt?: string;
 }
 
+export interface SubmitContactRequest {
+  name: string;
+  email: string;
+  mobile?: string;
+  queryType: string;
+  message: string;
+}
+
 export const contactApi = {
+  submit: async (data: SubmitContactRequest): Promise<ContactQuery> => {
+    const response = await apiClient.post<ContactQuery>('/api/contact-queries', data);
+    return response.data;
+  },
+
   list: async (status?: ContactQueryStatus): Promise<ContactQuery[]> => {
     const response = await apiClient.get<ContactQuery[]>('/api/contact-queries', {
       params: status ? { status } : undefined,

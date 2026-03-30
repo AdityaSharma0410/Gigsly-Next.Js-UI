@@ -6,7 +6,24 @@ import { useNotification } from '@/lib/contexts/NotificationContext';
 import { chatApi } from '@/lib/api';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Search, Briefcase, MessageSquare, User, LogOut, Menu, X, Bell, Moon, Sun, Shield, UsersRound } from 'lucide-react';
+import {
+  Home,
+  Search,
+  Briefcase,
+  MessageSquare,
+  User,
+  LogOut,
+  Menu,
+  X,
+  Bell,
+  Moon,
+  Sun,
+  Shield,
+  UsersRound,
+  Mail,
+  Info,
+} from 'lucide-react';
+import SiteInteractiveBackground from '@/components/site/SiteInteractiveBackground';
 import { useEffect, useState } from 'react';
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
@@ -16,6 +33,14 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState<number>(0);
+  const [scrollY, setScrollY] = useState(0);
+
+  useEffect(() => {
+    const onScroll = () => setScrollY(window.scrollY);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -42,19 +67,20 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     };
   }, [isAuthenticated]);
 
+  const browseHref = isAuthenticated ? '/browse' : '/register?next=%2Fbrowse';
+  const professionalsHref = isAuthenticated ? '/professionals' : '/register?next=%2Fprofessionals';
+
   const navigation = [
     { name: 'Home', href: '/', icon: Home },
-    { name: 'Browse', href: '/browse', icon: Search },
-    // Keep discovery links visible (especially on auth/admin flows).
-    ...(user?.role === 'PROFESSIONAL'
-      ? [{ name: 'Find Work', href: '/find-work', icon: Briefcase }]
-      : []),
-    { name: 'Browse Professionals', href: '/professionals', icon: UsersRound },
-    { name: 'Browse Clients', href: '/clients', icon: UsersRound },
+    { name: 'About', href: '/about', icon: Info },
+    { name: 'Browse', href: browseHref, icon: Search },
+    ...(user?.role === 'PROFESSIONAL' ? [{ name: 'Find Work', href: '/find-work', icon: Briefcase }] : []),
+    { name: 'Browse Professionals', href: professionalsHref, icon: UsersRound },
+    ...(user?.role === 'ADMIN' ? [{ name: 'Browse Clients', href: '/clients', icon: UsersRound }] : []),
+    { name: 'Contact', href: '/contact', icon: Mail },
     ...(isAuthenticated
       ? [
           { name: 'Messages', href: '/chat', icon: MessageSquare },
-          { name: 'Profile', href: '/profile/me', icon: User },
           user?.role === 'ADMIN'
             ? { name: 'Admin', href: '/admin', icon: Shield }
             : { name: 'Dashboard', href: '/dashboard', icon: User },
@@ -62,11 +88,37 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       : []),
   ];
 
+  const navLinkActive = (href: string) => {
+    const pathOnly = href.split('?')[0];
+    if (pathname === pathOnly) return true;
+    if (pathOnly === '/register' && pathname === '/register') return true;
+    return false;
+  };
+
+  const scrollT = Math.min(1, scrollY / 180);
+  const headerBlur = 12 + (1 - scrollT) * 14;
+  const headerTop = 0.72 + (1 - scrollT) * 0.14;
+  const headerMid = 0.38 + (1 - scrollT) * 0.14;
+  const headerBot = 0.06 + scrollT * 0.16;
+
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
-        <div className="container mx-auto px-4">
+      <SiteInteractiveBackground />
+
+      {/* Header: vertical glass gradient (frosted top → translucent bottom) + scroll-linked strength */}
+      <header className="sticky top-0 z-50 border-b border-border/80 relative overflow-hidden shadow-[0_1px_0_hsl(var(--border)/0.35)]">
+        <div
+          className="absolute inset-0 -z-0 pointer-events-none"
+          style={{
+            background: `linear-gradient(to bottom,
+              hsl(var(--card) / ${headerTop}) 0%,
+              hsl(var(--card) / ${headerMid}) 52%,
+              hsl(var(--card) / ${headerBot}) 100%)`,
+            backdropFilter: `blur(${headerBlur}px) saturate(1.25)`,
+            WebkitBackdropFilter: `blur(${headerBlur}px) saturate(1.25)`,
+          }}
+        />
+        <div className="container mx-auto px-4 relative z-10">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <Link href="/" className="text-2xl font-bold">
@@ -77,11 +129,11 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             <nav className="hidden md:flex items-center gap-1">
               {navigation.map((item) => {
                 const Icon = item.icon;
-                const isActive = pathname === item.href;
+                const isActive = navLinkActive(item.href);
                 const showUnread = item.href === '/chat' && unreadMessages > 0;
                 return (
                   <Link
-                    key={item.name}
+                    key={`${item.name}-${item.href}`}
                     href={item.href}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
                       isActive
@@ -137,9 +189,18 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                     )}
                   </Link>
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm">
-                      {user?.fullName?.[0]?.toUpperCase()}
-                    </div>
+                    <Link
+                      href="/profile/me"
+                      className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm ring-2 ring-border overflow-hidden shrink-0 hover:opacity-90 transition-opacity"
+                      aria-label="Profile"
+                    >
+                      {user?.profilePictureUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={user.profilePictureUrl} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        user?.fullName?.[0]?.toUpperCase()
+                      )}
+                    </Link>
                     <button
                       onClick={logout}
                       className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-muted"
@@ -179,14 +240,14 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
         {/* Mobile Menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-t border-border bg-card p-4">
+          <div className="md:hidden border-t border-border bg-card/95 backdrop-blur-md p-4 relative z-10">
             <nav className="flex flex-col gap-2">
               {navigation.map((item) => {
                 const Icon = item.icon;
-                const isActive = pathname === item.href;
+                const isActive = navLinkActive(item.href);
                 return (
                   <Link
-                    key={item.name}
+                    key={item.name + item.href}
                     href={item.href}
                     onClick={() => setMobileMenuOpen(false)}
                     className={`flex items-center gap-3 px-4 py-3 rounded-lg ${
@@ -202,6 +263,21 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             <div className="mt-4 pt-4 border-t border-border">
               {isAuthenticated ? (
                 <div className="flex flex-col gap-2">
+                  <Link
+                    href="/profile/me"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-muted"
+                  >
+                    <span className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm overflow-hidden shrink-0 ring-2 ring-border">
+                      {user?.profilePictureUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={user.profilePictureUrl} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        user?.fullName?.[0]?.toUpperCase()
+                      )}
+                    </span>
+                    <span className="font-medium">Profile</span>
+                  </Link>
                   <Link
                     href="/notifications"
                     onClick={() => setMobileMenuOpen(false)}
@@ -246,18 +322,11 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         )}
       </header>
 
-      {/* Animated Background */}
-      <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 right-10 w-96 h-96 bg-blue-600/5 rounded-full blur-3xl animate-float" />
-        <div className="absolute bottom-20 left-10 w-96 h-96 bg-purple-600/5 rounded-full blur-3xl animate-float" style={{ animationDelay: '2s' }} />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-pink-600/5 rounded-full blur-3xl animate-float" style={{ animationDelay: '4s' }} />
-      </div>
-
       {/* Main Content */}
       <main className="flex-1">{children}</main>
 
       {/* Footer */}
-      <footer className="border-t border-border bg-card py-12">
+      <footer className="border-t border-border glass-surface py-12">
         <div className="container mx-auto px-4">
           <div className="grid md:grid-cols-4 gap-8">
             <div>
@@ -268,25 +337,126 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                 India&apos;s #1 freelance marketplace connecting talent with opportunities.
               </p>
             </div>
-            <div>
-              <h4 className="font-semibold mb-4">For Clients</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><Link href="/browse" className="hover:text-foreground">Browse Services</Link></li>
-                <li><Link href="/create-gig" className="hover:text-foreground">Post a Job</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4">For Freelancers</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><Link href="/find-work" className="hover:text-foreground">Find Work</Link></li>
-                <li><Link href="/register" className="hover:text-foreground">Become a Seller</Link></li>
-              </ul>
-            </div>
+            {!isAuthenticated && (
+              <>
+                <div>
+                  <h4 className="font-semibold mb-4">For Clients</h4>
+                  <ul className="space-y-2 text-sm text-muted-foreground">
+                    <li>
+                      <Link href="/register?next=%2Fbrowse" className="hover:text-foreground">
+                        Browse Services
+                      </Link>
+                    </li>
+                    <li>
+                      <Link href="/register?next=%2Fcreate-gig" className="hover:text-foreground">
+                        Post a Job
+                      </Link>
+                    </li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="font-semibold mb-4">For Freelancers</h4>
+                  <ul className="space-y-2 text-sm text-muted-foreground">
+                    <li>
+                      <Link href="/register?next=%2Ffind-work" className="hover:text-foreground">
+                        Find Work
+                      </Link>
+                    </li>
+                    <li>
+                      <Link href="/register" className="hover:text-foreground">
+                        Become a Seller
+                      </Link>
+                    </li>
+                  </ul>
+                </div>
+              </>
+            )}
+            {isAuthenticated && user?.role === 'CLIENT' && (
+              <div>
+                <h4 className="font-semibold mb-4">For Clients</h4>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                  <li>
+                    <Link href="/browse" className="hover:text-foreground">
+                      Browse Services
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/create-gig" className="hover:text-foreground">
+                      Post a Job
+                    </Link>
+                  </li>
+                </ul>
+              </div>
+            )}
+            {isAuthenticated && user?.role === 'PROFESSIONAL' && (
+              <div>
+                <h4 className="font-semibold mb-4">For Freelancers</h4>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                  <li>
+                    <Link href="/find-work" className="hover:text-foreground">
+                      Find Work
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/profile/me" className="hover:text-foreground">
+                      Your profile
+                    </Link>
+                  </li>
+                </ul>
+              </div>
+            )}
+            {isAuthenticated && user?.role === 'ADMIN' && (
+              <>
+                <div>
+                  <h4 className="font-semibold mb-4">Platform</h4>
+                  <ul className="space-y-2 text-sm text-muted-foreground">
+                    <li>
+                      <Link href="/admin" className="hover:text-foreground">
+                        Admin
+                      </Link>
+                    </li>
+                    <li>
+                      <Link href="/browse" className="hover:text-foreground">
+                        Browse Services
+                      </Link>
+                    </li>
+                    <li>
+                      <Link href="/clients" className="hover:text-foreground">
+                        Browse Clients
+                      </Link>
+                    </li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="font-semibold mb-4">More</h4>
+                  <ul className="space-y-2 text-sm text-muted-foreground">
+                    <li>
+                      <Link href="/professionals" className="hover:text-foreground">
+                        Professionals
+                      </Link>
+                    </li>
+                    <li>
+                      <Link href="/find-work" className="hover:text-foreground">
+                        Find Work
+                      </Link>
+                    </li>
+                  </ul>
+                </div>
+              </>
+            )}
             <div>
               <h4 className="font-semibold mb-4">Company</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><Link href="/" className="hover:text-foreground">About Us</Link></li>
-                <li><Link href="/" className="hover:text-foreground">Contact</Link></li>
+                <li>
+                  <Link href="/about" className="hover:text-foreground">
+                    About Us
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/contact" className="hover:text-foreground">
+                    Contact
+                  </Link>
+                </li>
               </ul>
             </div>
           </div>

@@ -1,14 +1,15 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { type RegisterRequest } from '@/lib/api';
 import { Loader2, UserPlus } from 'lucide-react';
 import Link from 'next/link';
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { register } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -26,7 +27,14 @@ export default function RegisterPage() {
 
     try {
       const user = await register(formData);
-      router.push(user.role === 'ADMIN' ? '/admin' : '/dashboard');
+      const next = searchParams.get('next');
+      const safe =
+        next && next.startsWith('/') && !next.startsWith('//') ? next : null;
+      if (safe) {
+        router.push(safe);
+      } else {
+        router.push(user.role === 'ADMIN' ? '/admin' : '/dashboard');
+      }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Registration failed');
     } finally {
@@ -124,5 +132,13 @@ export default function RegisterPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading…</div>}>
+      <RegisterForm />
+    </Suspense>
   );
 }

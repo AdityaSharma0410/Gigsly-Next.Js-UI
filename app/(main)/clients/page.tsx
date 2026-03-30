@@ -1,12 +1,20 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { userApi, type User } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { Loader2, Search, MapPin, BadgeCheck } from 'lucide-react';
 
 export default function ClientsPage() {
-  const { isAuthenticated } = useAuth();
+  const router = useRouter();
+  const { isAuthenticated, user } = useAuth();
+
+  useEffect(() => {
+    if (user?.role === 'CLIENT') {
+      router.replace('/profile/me');
+    }
+  }, [user?.role, router]);
   const [loading, setLoading] = useState(true);
   const [clients, setClients] = useState<User[]>([]);
   const [selected, setSelected] = useState<User | null>(null);
@@ -35,6 +43,14 @@ export default function ClientsPage() {
       return hay.includes(term) || String(c.id).includes(term);
     });
   }, [clients, q]);
+
+  if (user?.role === 'CLIENT') {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
 
   if (loading) {
     return (
